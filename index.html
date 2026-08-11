@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>necosophy</title>
-<meta name="description" content="A study in decay, signal, and living systems.">
+<title>necosophy — generative interspecies assemblages</title>
+<meta name="description" content="Human, plant, machine — collaborating without a center.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -68,10 +68,10 @@
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
     font-style: normal;
-    font-size: clamp(2rem, 6.5vw, 3.1rem);
+    font-size: clamp(1.7rem, 5.2vw, 2.6rem);
     letter-spacing: -0.01em;
     color: var(--ink);
-    line-height: 1.2;
+    line-height: 1.25;
   }
 
   .tagline {
@@ -111,7 +111,11 @@
     font-size: 14.5px;
     color: var(--ink);
     max-width: 46ch;
-    margin-bottom: 3.5rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .statement.muted {
+    color: var(--muted);
   }
 
   .statement em {
@@ -126,7 +130,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 1rem;
+    margin: 2.25rem 0 1rem;
     font-weight: 400;
   }
 
@@ -139,6 +143,20 @@
     text-decoration: none;
     color: inherit;
     transition: border-color 0.2s ease, transform 0.2s ease;
+    margin-bottom: 1rem;
+  }
+
+  .project:last-child {
+    margin-bottom: 0;
+  }
+
+  .project.soon {
+    opacity: 0.72;
+  }
+
+  .project.soon:hover {
+    border-color: var(--hairline);
+    transform: none;
   }
 
   .project:hover, .project:focus-visible {
@@ -173,6 +191,10 @@
     color: var(--copper);
   }
 
+  .soon-label {
+    color: var(--muted) !important;
+  }
+
   footer {
     width: 100%;
     max-width: 640px;
@@ -202,27 +224,37 @@
 <main>
   <p class="mark">necosophy</p>
 
-  <h1>wisdom of the compost heap</h1>
-  <p class="tagline">Anti-idyll. Pro-signal. A record of things built at the edge of the grid.</p>
+  <h1>generative interspecies assemblages</h1>
+  <p class="tagline">Human, plant, machine &mdash; collaborating without a center.</p>
 
   <svg class="wave" viewBox="0 0 640 46" preserveAspectRatio="none" role="img" aria-label="Animated waveform, decorative">
     <path d="M0,23 L60,23 L72,8 L84,38 L96,23 L160,23 L172,14 L184,32 L196,23 L260,23 L272,4 L284,42 L296,23 L360,23 L372,16 L384,30 L396,23 L460,23 L472,8 L484,38 L496,23 L560,23 L572,14 L584,32 L596,23 L640,23" />
   </svg>
 
-  <p class="statement">This is a slow archive of experiments living at the intersection of <em>biological signal</em> and generated sound and image &mdash; built off-grid, on the Caribbean coast, with whatever bandwidth the day allows.</p>
+  <p class="statement">Rather than restoring balance, I'm interested in how we exist within instability, tension, and continuous transformation &mdash; thinking and living without fantasies of purity, permanence, or total control.</p>
 
-  <h2 class="section-label">Current work</h2>
+  <p class="statement muted">Each tool here treats technology as a new sensory organ &mdash; a way of listening to forms of life that sit outside human perception, and asking what it means to collaborate with them artistically. This is <em>translation, not representation</em>: not an attempt to depict life as it is, but to give it another form to move through.</p>
+
+  <p class="statement muted">Nothing here assumes nature and technology are separate, or that collaboration needs a center &mdash; plants, microbes, and machines organize without a plan, a kind of cooperation capitalism has little use for. Working the boundary between organism and instrument is one way of asking what widens empathy: perception decides what counts as alive enough to matter, and most life sits past its edge.</p>
+
+  <h2 class="section-label">Tools</h2>
 
   <a class="project" href="https://necosophy.github.io/midi-space/">
     <p class="project-title">midi-space</p>
     <p class="project-desc">Plant bioelectrical activity, translated live into MIDI &mdash; sound and visuals generated from a living signal.</p>
     <span class="project-link">Enter &rarr;</span>
   </a>
+
+  <div class="project soon">
+    <p class="project-title">scoby synth</p>
+    <p class="project-desc">A synthesizer voiced by a sourdough starter &mdash; fermentation translated into sound, the boundary between organism and instrument.</p>
+    <span class="project-link soon-label">In progress</span>
+  </div>
 </main>
 
 <footer>
   <span>necosophy, 2026</span>
-  <span><a href="https://github.com/necosophy">github</a></span>
+  <span><a href="mailto:exist.sus@gmail.com">email</a> &nbsp;&middot;&nbsp; <a href="https://github.com/necosophy">github</a></span>
 </footer>
 
 </body>
