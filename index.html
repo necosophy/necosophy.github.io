@@ -467,12 +467,66 @@
     }
   }
 
+  var audioCtx = null;
+  function initAudio() {
+    if (audioCtx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  document.addEventListener('pointerdown', initAudio, { once: true });
+
+  function playWoosh() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+    var duration = 0.22;
+    var bufferSize = Math.floor(audioCtx.sampleRate * duration);
+    var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    var noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 0.8;
+    var now = audioCtx.currentTime;
+    filter.frequency.setValueAtTime(300, now);
+    filter.frequency.exponentialRampToValueAtTime(2200, now + duration * 0.55);
+    filter.frequency.exponentialRampToValueAtTime(400, now + duration);
+
+    var gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.16, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    noise.start(now);
+    noise.stop(now + duration);
+  }
+
   var waveSvg = document.querySelector('.wave');
   var wavePath = document.getElementById('wave-path');
   if (waveSvg && wavePath && !reduceMotion) {
     var mouseX = null;
     var mouseActive = false;
     var phase = 0;
+    var lastSign = null;
+    var lastCrossTime = 0;
+
+    function waveYAt(x) {
+      var mid = 23, baseAmp = 7;
+      var y = mid + Math.sin((x * 0.045) + phase) * baseAmp;
+      if (mouseActive && mouseX !== null) {
+        var dist = Math.abs(x - mouseX);
+        var bump = Math.max(0, 1 - dist / 160) * 14;
+        y -= bump;
+      }
+      return y;
+    }
 
     function buildWave() {
       var width = 640, mid = 23, baseAmp = 7, step = 8;
@@ -493,9 +547,24 @@
       var rect = waveSvg.getBoundingClientRect();
       mouseX = ((e.clientX - rect.left) / rect.width) * 640;
       mouseActive = true;
+
+      var mouseYViewBox = ((e.clientY - rect.top) / rect.height) * 46;
+      var lineY = waveYAt(mouseX);
+      var sign = mouseYViewBox > lineY ? 1 : -1;
+
+      if (lastSign !== null && sign !== lastSign) {
+        var t = performance.now();
+        if (t - lastCrossTime > 140) {
+          lastCrossTime = t;
+          if (!audioCtx) { initAudio(); }
+          playWoosh();
+        }
+      }
+      lastSign = sign;
     });
     waveSvg.addEventListener('mouseleave', function () {
       mouseActive = false;
+      lastSign = null;
     });
 
     (function waveLoop() {
