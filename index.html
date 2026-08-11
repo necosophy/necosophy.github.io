@@ -327,7 +327,7 @@
 
   <div class="hero">
     <h1>generative interspecies assemblages</h1>
-    <p class="tagline">Human, plant, machine &mdash; collaborating without a center.</p>
+    <p class="tagline">Human, organism, machine &mdash; collaborating without a center.</p>
 
     <svg class="jar-scene hero-jar" viewBox="0 0 220 100" role="img" aria-label="Illustration of a jar of fermenting sourdough starter wired to a small blinking, pulsing music box">
       <rect class="jar-lid" x="15" y="8" width="50" height="10" rx="2"/>
@@ -473,7 +473,13 @@
     var AC = window.AudioContext || window.webkitAudioContext;
     if (AC) audioCtx = new AC();
   }
-  document.addEventListener('pointerdown', initAudio, { once: true });
+  function unlockAudio() {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
+  }
+  ['pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach(function (evt) {
+    document.addEventListener(evt, unlockAudio, { once: true, passive: true });
+  });
 
   function playWoosh() {
     if (!audioCtx) return;
