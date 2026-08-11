@@ -243,7 +243,7 @@
 
   <a class="project" href="https://necosophy.github.io/midi-space/">
     <p class="project-title">midi-space</p>
-    <p class="project-desc">Plant bioelectrical activity, translated live into MIDI &mdash; sound and visuals generated from a living signal.</p>
+    <p class="project-desc">A generative instrument &mdash; connect a MIDI keyboard or controller and shape live sound and visuals in real time.</p>
     <span class="project-link">Enter &rarr;</span>
   </a>
 
@@ -323,7 +323,7 @@
           var a = particles[i], b = particles[j];
           var d = Math.hypot(a.x - b.x, a.y - b.y);
           if (d < LINK_DIST) {
-            ctx.strokeStyle = 'rgba(92,107,74,' + (0.14 * (1 - d / LINK_DIST)) + ')';
+            ctx.strokeStyle = 'rgba(184,135,74,' + (0.14 * (1 - d / LINK_DIST)) + ')';
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
