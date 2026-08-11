@@ -390,8 +390,7 @@
   if (canvas && canvas.getContext) {
     var ctx = canvas.getContext('2d');
     var w, h, particles = [];
-    var COUNT = 42;
-    var LINK_DIST = 130;
+    var LINK_DIST = 150;
 
     function rand(min, max) { return Math.random() * (max - min) + min; }
 
@@ -401,6 +400,8 @@
     }
     window.addEventListener('resize', resize);
     resize();
+
+    var COUNT = Math.max(40, Math.min(160, Math.round((w * h) / 16000)));
 
     for (var i = 0; i < COUNT; i++) {
       particles.push({
@@ -433,11 +434,11 @@
 
     function draw() {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(184,135,74,0.4)';
+      ctx.fillStyle = 'rgba(184,135,74,0.55)';
       for (var i = 0; i < particles.length; i++) {
         var p = particles[i];
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 1.3, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.lineWidth = 0.5;
@@ -446,7 +447,7 @@
           var a = particles[i], b = particles[j];
           var d = Math.hypot(a.x - b.x, a.y - b.y);
           if (d < LINK_DIST) {
-            ctx.strokeStyle = 'rgba(184,135,74,' + (0.14 * (1 - d / LINK_DIST)) + ')';
+            ctx.strokeStyle = 'rgba(184,135,74,' + (0.18 * (1 - d / LINK_DIST)) + ')';
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
