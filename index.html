@@ -223,8 +223,8 @@
       display: block;
       left: auto;
       top: auto;
-      width: 160px;
-      max-width: 55vw;
+      width: 240px;
+      max-width: 80vw;
       margin: 1.5rem auto 0;
     }
   }
@@ -277,16 +277,14 @@
     transform: scaleY(0.35);
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .bubble {
-      animation: bubble-rise 3.2s ease-in infinite;
-    }
-    .led {
-      animation: led-blink 1.6s ease-in-out infinite;
-    }
-    .eq-bar {
-      animation: bar-pulse 1s ease-in-out infinite;
-    }
+  .bubble {
+    animation: bubble-rise 3.2s ease-in infinite;
+  }
+  .led {
+    animation: led-blink 1.6s ease-in-out infinite;
+  }
+  .eq-bar {
+    animation: bar-pulse 1s ease-in-out infinite;
   }
 
   @keyframes bubble-rise {
@@ -396,8 +394,6 @@
 
 <script>
 (function () {
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
   var canvas = document.getElementById('assemblage-bg');
   if (canvas && canvas.getContext) {
     var ctx = canvas.getContext('2d');
@@ -469,15 +465,11 @@
       }
     }
 
-    if (!reduceMotion) {
-      (function loop() {
-        step();
-        draw();
-        requestAnimationFrame(loop);
-      })();
-    } else {
+    (function loop() {
+      step();
       draw();
-    }
+      requestAnimationFrame(loop);
+    })();
   }
 
   var audioCtx = null;
@@ -560,7 +552,7 @@
 
   var waveSvg = document.querySelector('.wave');
   var wavePath = document.getElementById('wave-path');
-  if (waveSvg && wavePath && !reduceMotion) {
+  if (waveSvg && wavePath) {
     var mouseX = null;
     var mouseActive = false;
     var phase = 0;
