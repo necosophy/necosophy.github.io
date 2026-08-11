@@ -50,6 +50,15 @@
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   }
 
+  #assemblage-bg {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+  }
+
   main {
     width: 100%;
     max-width: 640px;
@@ -87,6 +96,7 @@
     margin: 3rem 0;
     display: block;
     overflow: visible;
+    cursor: crosshair;
   }
 
   .wave path {
@@ -94,17 +104,6 @@
     stroke: var(--moss);
     stroke-width: 1;
     stroke-linecap: round;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .wave path {
-      stroke-dasharray: 6 5;
-      animation: drift 14s linear infinite;
-    }
-  }
-
-  @keyframes drift {
-    to { stroke-dashoffset: -220; }
   }
 
   .statement {
@@ -221,14 +220,16 @@
 </head>
 <body>
 
+<canvas id="assemblage-bg" aria-hidden="true"></canvas>
+
 <main>
   <p class="mark">necosophy</p>
 
   <h1>generative interspecies assemblages</h1>
   <p class="tagline">Human, plant, machine &mdash; collaborating without a center.</p>
 
-  <svg class="wave" viewBox="0 0 640 46" preserveAspectRatio="none" role="img" aria-label="Animated waveform, decorative">
-    <path d="M0,23 L60,23 L72,8 L84,38 L96,23 L160,23 L172,14 L184,32 L196,23 L260,23 L272,4 L284,42 L296,23 L360,23 L372,16 L384,30 L396,23 L460,23 L472,8 L484,38 L496,23 L560,23 L572,14 L584,32 L596,23 L640,23" />
+  <svg class="wave" viewBox="0 0 640 46" preserveAspectRatio="none" role="img" aria-label="Waveform that responds to the cursor, decorative">
+    <path id="wave-path" d="M0,23 L60,23 L72,8 L84,38 L96,23 L160,23 L172,14 L184,32 L196,23 L260,23 L272,4 L284,42 L296,23 L360,23 L372,16 L384,30 L396,23 L460,23 L472,8 L484,38 L496,23 L560,23 L572,14 L584,32 L596,23 L640,23" />
   </svg>
 
   <p class="statement">Rather than restoring balance, I'm interested in how we exist within instability, tension, and continuous transformation &mdash; thinking and living without fantasies of purity, permanence, or total control.</p>
@@ -256,6 +257,131 @@
   <span>necosophy, 2026</span>
   <span><a href="mailto:exist.sus@gmail.com">email</a> &nbsp;&middot;&nbsp; <a href="https://github.com/necosophy">github</a></span>
 </footer>
+
+<script>
+(function () {
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var canvas = document.getElementById('assemblage-bg');
+  if (canvas && canvas.getContext) {
+    var ctx = canvas.getContext('2d');
+    var w, h, particles = [];
+    var COUNT = 42;
+    var LINK_DIST = 130;
+
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    for (var i = 0; i < COUNT; i++) {
+      particles.push({
+        x: rand(0, w),
+        y: rand(0, h),
+        vx: rand(-0.12, 0.12),
+        vy: rand(-0.12, 0.12)
+      });
+    }
+
+    function step() {
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        p.vx += rand(-0.006, 0.006);
+        p.vy += rand(-0.006, 0.006);
+        var speed = Math.hypot(p.vx, p.vy);
+        var maxSpeed = 0.22;
+        if (speed > maxSpeed) {
+          p.vx = (p.vx / speed) * maxSpeed;
+          p.vy = (p.vy / speed) * maxSpeed;
+        }
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(184,135,74,0.4)';
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.lineWidth = 0.5;
+      for (var i = 0; i < particles.length; i++) {
+        for (var j = i + 1; j < particles.length; j++) {
+          var a = particles[i], b = particles[j];
+          var d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < LINK_DIST) {
+            ctx.strokeStyle = 'rgba(92,107,74,' + (0.14 * (1 - d / LINK_DIST)) + ')';
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    if (!reduceMotion) {
+      (function loop() {
+        step();
+        draw();
+        requestAnimationFrame(loop);
+      })();
+    } else {
+      draw();
+    }
+  }
+
+  var waveSvg = document.querySelector('.wave');
+  var wavePath = document.getElementById('wave-path');
+  if (waveSvg && wavePath && !reduceMotion) {
+    var mouseX = null;
+    var mouseActive = false;
+    var phase = 0;
+
+    function buildWave() {
+      var width = 640, mid = 23, baseAmp = 7, step = 8;
+      var d = 'M0,' + mid.toFixed(1);
+      for (var x = step; x <= width; x += step) {
+        var y = mid + Math.sin((x * 0.045) + phase) * baseAmp;
+        if (mouseActive && mouseX !== null) {
+          var dist = Math.abs(x - mouseX);
+          var bump = Math.max(0, 1 - dist / 160) * 14;
+          y -= bump;
+        }
+        d += ' L' + x.toFixed(1) + ',' + y.toFixed(1);
+      }
+      wavePath.setAttribute('d', d);
+    }
+
+    waveSvg.addEventListener('mousemove', function (e) {
+      var rect = waveSvg.getBoundingClientRect();
+      mouseX = ((e.clientX - rect.left) / rect.width) * 640;
+      mouseActive = true;
+    });
+    waveSvg.addEventListener('mouseleave', function () {
+      mouseActive = false;
+    });
+
+    (function waveLoop() {
+      phase += 0.012;
+      buildWave();
+      requestAnimationFrame(waveLoop);
+    })();
+  }
+})();
+</script>
 
 </body>
 </html>
