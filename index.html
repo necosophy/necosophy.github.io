@@ -356,7 +356,7 @@
     <path id="wave-path" d="M0,23 L60,23 L72,8 L84,38 L96,23 L160,23 L172,14 L184,32 L196,23 L260,23 L272,4 L284,42 L296,23 L360,23 L372,16 L384,30 L396,23 L460,23 L472,8 L484,38 L496,23 L560,23 L572,14 L584,32 L596,23 L640,23" />
   </svg>
 
-  <p class="statement">Rather than restoring balance, I'm interested in how we exist within instability, tension, and continuous transformation &mdash; thinking and living without fantasies of purity, permanence, or total control.</p>
+  <p class="statement">Rather than restoring balance, this work stays with how we exist within instability, tension, and continuous transformation &mdash; thinking and living without fantasies of purity, permanence, or total control.</p>
 
   <p class="statement muted">Each tool here treats technology as a sensory organ &mdash; a way of listening to forms of life that sit outside human perception, and asking what it means to collaborate with them. This is <em>translation, not representation</em>: not an attempt to depict life as it is, but to give it another form to move through.</p>
 
@@ -478,34 +478,65 @@
   function playWoosh() {
     if (!audioCtx) return;
     if (audioCtx.state === 'suspended') { audioCtx.resume(); }
-    var duration = 0.22;
-    var bufferSize = Math.floor(audioCtx.sampleRate * duration);
-    var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    var data = buffer.getChannelData(0);
-    for (var i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    var noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
+    var now = audioCtx.currentTime;
+    var duration = 0.55;
+
+    var pitchMul = 0.65 + Math.random() * 0.9;
+    var startFreq = 1500 * pitchMul;
+    var endFreq = Math.max(45, 85 * pitchMul);
+
+    var osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(startFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+    var osc2 = audioCtx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(startFreq * 1.008, now);
+    osc2.frequency.exponentialRampToValueAtTime(endFreq * 1.06, now + duration);
+    osc2.detune.setValueAtTime(14, now);
+
+    var lfo = audioCtx.createOscillator();
+    lfo.frequency.value = 6.5 + Math.random() * 6;
+    var lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 35;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfoGain.connect(osc2.frequency);
 
     var filter = audioCtx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.Q.value = 0.8;
-    var now = audioCtx.currentTime;
-    filter.frequency.setValueAtTime(300, now);
-    filter.frequency.exponentialRampToValueAtTime(2200, now + duration * 0.55);
-    filter.frequency.exponentialRampToValueAtTime(400, now + duration);
+    filter.Q.value = 5;
+    filter.frequency.setValueAtTime(startFreq * 1.3, now);
+    filter.frequency.exponentialRampToValueAtTime(160, now + duration);
 
     var gainNode = audioCtx.createGain();
     gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(0.16, now + 0.02);
+    gainNode.gain.linearRampToValueAtTime(0.2, now + 0.03);
     gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-    noise.connect(filter);
+    var delay = audioCtx.createDelay();
+    delay.delayTime.value = 0.17;
+    var feedback = audioCtx.createGain();
+    feedback.gain.value = 0.32;
+    var delayWet = audioCtx.createGain();
+    delayWet.gain.value = 0.4;
+
+    delay.connect(feedback);
+    feedback.connect(delay);
+
+    osc.connect(filter);
+    osc2.connect(filter);
     filter.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    noise.start(now);
-    noise.stop(now + duration);
+    gainNode.connect(delay);
+    delay.connect(delayWet);
+    delayWet.connect(audioCtx.destination);
+
+    var stopAt = now + duration + 0.4;
+    osc.start(now); osc.stop(stopAt);
+    osc2.start(now); osc2.stop(stopAt);
+    lfo.start(now); lfo.stop(stopAt);
   }
 
   var waveSvg = document.querySelector('.wave');
@@ -554,7 +585,7 @@
 
       if (lastSign !== null && sign !== lastSign) {
         var t = performance.now();
-        if (t - lastCrossTime > 140) {
+        if (t - lastCrossTime > 200) {
           lastCrossTime = t;
           if (!audioCtx) { initAudio(); }
           playWoosh();
