@@ -13,12 +13,12 @@
 export const POSES = {
   // Alert, upright sitting position. Default pose.
   idle: {
-    earL: [-0.22, 2.05, 0.78],
-    earR: [0.22, 2.05, 0.78],
-    head: [0, 1.72, 0.85],
-    muzzle: [0, 1.55, 1.15],
-    neck: [0, 1.38, 0.55],
-    chestFront: [0, 1.05, 0.32],
+    earL: [-0.22, 1.78, 0.48],
+    earR: [0.22, 1.78, 0.48],
+    head: [0, 1.45, 0.55],
+    muzzle: [0, 1.32, 0.85],
+    neck: [0, 1.22, 0.42],
+    chestFront: [0, 1.05, 0.34],
     spineMid: [0, 0.85, -0.18],
     hip: [0, 0.78, -0.62],
     tailBase: [0, 0.85, -0.92],
@@ -36,12 +36,12 @@ export const POSES = {
 
   // Relaxed sit, tail curled around the front paws.
   sit: {
-    earL: [-0.24, 1.85, 0.7],
-    earR: [0.24, 1.85, 0.7],
-    head: [0, 1.55, 0.8],
-    muzzle: [0, 1.4, 1.08],
-    neck: [0, 1.2, 0.5],
-    chestFront: [0, 0.92, 0.3],
+    earL: [-0.24, 1.62, 0.40],
+    earR: [0.24, 1.62, 0.40],
+    head: [0, 1.32, 0.5],
+    muzzle: [0, 1.17, 0.78],
+    neck: [0, 1.12, 0.4],
+    chestFront: [0, 0.92, 0.32],
     spineMid: [0, 0.78, -0.15],
     hip: [0, 0.72, -0.55],
     tailBase: [0, 0.55, -0.62],
@@ -59,12 +59,12 @@ export const POSES = {
 
   // Loafing / curled lie-down, legs tucked under, head resting low.
   lie: {
-    earL: [-0.22, 1.35, 0.75],
-    earR: [0.22, 1.35, 0.75],
-    head: [0, 1.15, 0.95],
-    muzzle: [0, 1.0, 1.25],
-    neck: [0, 0.92, 0.55],
-    chestFront: [0, 0.62, 0.28],
+    earL: [-0.22, 1.12, 0.42],
+    earR: [0.22, 1.12, 0.42],
+    head: [0, 0.92, 0.62],
+    muzzle: [0, 0.77, 0.92],
+    neck: [0, 0.78, 0.42],
+    chestFront: [0, 0.62, 0.30],
     spineMid: [0, 0.55, -0.2],
     hip: [0, 0.55, -0.65],
     tailBase: [0, 0.5, -0.85],
@@ -83,11 +83,11 @@ export const POSES = {
   // Arched-back stretch, hips raised, front paws pushed forward and low.
   // Brief pose — main.js/catMesh.js auto-return this to idle.
   stretch: {
-    earL: [-0.2, 1.1, 1.3],
-    earR: [0.2, 1.1, 1.3],
-    head: [0, 0.85, 1.55],
-    muzzle: [0, 0.6, 1.85],
-    neck: [0, 0.78, 1.0],
+    earL: [-0.2, 1.03, 0.90],
+    earR: [0.2, 1.03, 0.90],
+    head: [0, 0.78, 1.15],
+    muzzle: [0, 0.53, 1.45],
+    neck: [0, 0.72, 0.82],
     chestFront: [0, 0.5, 0.55],
     spineMid: [0, 1.0, -0.1],
     hip: [0, 1.25, -0.6],
