@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cat Purr Generator</title>
+<meta name="description" content="A glowing particle cat that purrs back at your MIDI keyboard.">
+<style>
+  :root {
+    --bg: #05070a;
+    --glow: #7fe7ff;
+    --ink: #cdeffb;
+    --muted: #6f8a94;
+    --panel: rgba(6, 14, 18, 0.72);
+    --hairline: rgba(127, 231, 255, 0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #legend {
+    position: fixed;
+    left: 1.1rem;
+    bottom: 1.1rem;
+    z-index: 5;
+    padding: 0.85rem 1rem;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    backdrop-filter: blur(6px);
+    font-size: 12px;
+    line-height: 1.65;
+    max-width: 300px;
+    box-shadow: 0 0 24px rgba(127, 231, 255, 0.06);
+  }
+
+  #legend h1 {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--glow);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  #legend .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--muted);
+  }
+
+  #legend .row .key {
+    color: var(--ink);
+  }
+
+  #legend .hint {
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--hairline);
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  #legend .status {
+    margin-top: 0.4rem;
+    font-size: 11px;
+  }
+
+  #legend .status.ok { color: #8ce8a0; }
+  #legend .status.warn { color: #e8c88c; }
+
+  #audio-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 6, 9, 0.75);
+    backdrop-filter: blur(3px);
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 0.5s ease;
+  }
+
+  #audio-gate.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #audio-gate p {
+    color: var(--ink);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--hairline);
+    padding: 0.9rem 1.4rem;
+    border-radius: 10px;
+    background: var(--panel);
+  }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="legend">
+    <h1>Cat Purr Generator</h1>
+    <div id="legend-rows"></div>
+    <div class="hint">Any other note bends the active purr's pitch &amp; rate. Velocity sets purr loudness.</div>
+    <div id="midi-status" class="status warn">MIDI: connecting…</div>
+  </div>
+
+  <div id="audio-gate">
+    <p>click anywhere to enable audio</p>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
