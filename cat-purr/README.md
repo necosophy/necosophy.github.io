@@ -19,11 +19,12 @@ connect a MIDI controller; it's picked up automatically over Web MIDI.
 
 ## What it does
 
-- A cat built entirely from a glowing particle cloud + connecting glow
-  lines (no imported model). It's defined as a shared skeleton of named
-  anchor points; each of the four poses below is just a target position
-  for every anchor, so posing is pure interpolation, eased over ~1.6s —
-  never a snap-cut.
+- A cat built entirely from procedural wireframe geometry (no imported
+  model): tapered tube segments along a skeleton of named anchor points
+  form the body/neck/tail/legs, with a wireframe head, cone ears, and
+  glowing eye points. Each of the four poses below is just a target
+  position for every anchor, so posing is pure interpolation, eased over
+  ~1.6s — never a snap-cut.
 - Even with no MIDI input the cat keeps gentle idle motion: chest/spine
   particles breathe, the tail sways, ears occasionally twitch, and the
   whole cloud has a subtle shimmer/jitter.
@@ -57,7 +58,7 @@ touching the rendering/audio code.
 src/
   config.js      key->pose mapping, timings, purr/camera/shimmer tuning
   poses.js       skeleton anchor names, per-pose target positions, glow-line links
-  catModel.js    particle cloud generation + pose tweening + idle motion
+  catMesh.js     tube-mesh body generation + pose tweening + idle motion
   purrSynth.js   Web Audio purr/chirp synthesis
   midi.js        Web MIDI input handling
   main.js        scene, bloom post-processing, legend UI, wiring
