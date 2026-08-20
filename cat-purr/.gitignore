@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# Cat mesh is not redistributable (Patreon/paid asset) — kept local-only.
+# Place your own copy at public/models/cat.glb.
+public/models/*
+!public/models/.gitkeep
