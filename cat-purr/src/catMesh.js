@@ -6,7 +6,7 @@ import { SHIMMER, POSE_TRANSITION_SECONDS, STRETCH_HOLD_SECONDS, DEFAULT_POSE } 
 // between the two radii of the bones they connect.
 const BONE_RADIUS = {
   earL: 0.075, earR: 0.075,
-  head: 0.24, muzzle: 0.1, neck: 0.16,
+  head: 0.24, muzzle: 0.1, neck: 0.22,
   chestFront: 0.26, spineMid: 0.23, hip: 0.26,
   tailBase: 0.1, tailMid: 0.08, tailTip: 0.06,
   legFL: 0.065, legFR: 0.065, legBL: 0.065, legBR: 0.065,
