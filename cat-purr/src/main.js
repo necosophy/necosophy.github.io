@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
-import { CatParticles } from './catModel.js';
+import { Cat } from './catMesh.js';
 import { PurrSynth } from './purrSynth.js';
 import { initMIDI } from './midi.js';
 import {
@@ -43,7 +43,7 @@ window.addEventListener('resize', () => {
   composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-const cat = new CatParticles(scene);
+const cat = new Cat(scene);
 const purr = new PurrSynth();
 
 // ---------------------------------------------------------------------------

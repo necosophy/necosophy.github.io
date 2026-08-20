@@ -3,7 +3,7 @@
 //
 // The cat is a set of named "bone" anchors. Each pose is just a target
 // position for every anchor; particles are generated once around each
-// anchor (see catModel.js) and simply ride along as anchors tween between
+// anchor (see catMesh.js) and simply ride along as anchors tween between
 // poses, so adding a pose is only a matter of adding a new position set here.
 //
 // Coordinate space: y-up, cat faces +Z (front paws / muzzle toward +Z,
@@ -81,7 +81,7 @@ export const POSES = {
   },
 
   // Arched-back stretch, hips raised, front paws pushed forward and low.
-  // Brief pose — main.js/catModel.js auto-return this to idle.
+  // Brief pose — main.js/catMesh.js auto-return this to idle.
   stretch: {
     earL: [-0.2, 1.1, 1.3],
     earR: [0.2, 1.1, 1.3],
