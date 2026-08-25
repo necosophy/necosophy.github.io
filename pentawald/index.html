@@ -666,6 +666,22 @@
     if (idx !== -1) voiceOrder.splice(idx, 1);
   }
 
+  // Disconnects a finished voice's nodes and clears its bookkeeping — but
+  // only if that bookkeeping still points at THIS source. A same-key
+  // retrigger overwrites voices[key] with a new voice before the old
+  // one's onended fires, so without this guard the old voice's belated
+  // cleanup could wipe out the new one.
+  function makeVoiceCleanup(key, source, gainNode) {
+    return function () {
+      try { source.disconnect(); } catch (err) {}
+      try { gainNode.disconnect(); } catch (err) {}
+      if (voices[key] && voices[key].source === source) {
+        delete voices[key];
+        removeFromVoiceOrder(key);
+      }
+    };
+  }
+
   function synthNoteOn(channel, note, velocity) {
     if (!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -681,11 +697,20 @@
     }
 
     var isNoise = currentVoiceType === 'noise';
-    var source;
+    var source, noiseFilter;
     if (isNoise) {
       source = audioCtx.createBufferSource();
       source.buffer = noiseBuffer;
       source.loop = true;
+      // Bandpassing the noise gives it a percussive "tick" character
+      // instead of reading as raw hiss. Only percussive voices carry
+      // this extra node — they're short-lived by design (see the decay
+      // below), so it doesn't reintroduce the per-voice-filter CPU cost
+      // the shared filter was meant to avoid for long-held tonal voices.
+      noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.value = Math.min(currentCutoff, 4000);
+      noiseFilter.Q.value = 1.1;
     } else {
       source = audioCtx.createOscillator();
       source.type = currentWaveform;
@@ -693,23 +718,34 @@
     }
 
     var gainNode = audioCtx.createGain();
-    var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23);
+    var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23) * (isNoise ? 0.55 : 1);
     var now = audioCtx.currentTime;
+    var attackTime = Math.max(0.001, currentAttack);
     gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(peak, now + Math.max(0.001, currentAttack));
+    gainNode.gain.linearRampToValueAtTime(peak, now + attackTime);
 
-    source.connect(gainNode);
+    if (isNoise) {
+      source.connect(noiseFilter);
+      noiseFilter.connect(gainNode);
+    } else {
+      source.connect(gainNode);
+    }
     gainNode.connect(masterGain);
     source.start(now);
 
-    // Proactively free the small per-voice subgraph once it finishes,
-    // instead of waiting on garbage collection to notice it's unreachable.
-    source.onended = function () {
-      try { source.disconnect(); } catch (err) {}
-      try { gainNode.disconnect(); } catch (err) {}
-    };
+    if (isNoise) {
+      // Percussive: decays on its own shortly after the hit, like a real
+      // pluck or drum — regardless of how long the source note stays
+      // "on". Without this it just sustains at full volume for as long
+      // as the note is held, which for continuously-firing biofeedback
+      // input reads as one long noise no matter what release is set to.
+      var decayTime = Math.max(0.05, currentRelease);
+      gainNode.gain.linearRampToValueAtTime(0.0001, now + attackTime + decayTime);
+      source.stop(now + attackTime + decayTime + 0.05);
+    }
 
-    voices[key] = { source: source, gain: gainNode, isNoise: isNoise };
+    source.onended = makeVoiceCleanup(key, source, gainNode);
+    voices[key] = { source: source, gain: gainNode, isNoise: isNoise, percussive: isNoise };
     voiceOrder.push(key);
   }
 
@@ -724,11 +760,19 @@
     removeFromVoiceOrder(key);
   }
 
+  function stopAllVoicesImmediately() {
+    Object.keys(voices).forEach(function (key) {
+      stopVoiceImmediately(key);
+    });
+  }
+
   function synthNoteOff(channel, note) {
     if (!audioCtx) return;
     var key = channel + '_' + note;
     var v = voices[key];
-    if (!v) return;
+    // A percussive voice already has its own decay scheduled from the
+    // moment it started — note-off doesn't touch it.
+    if (!v || v.percussive) return;
     var now = audioCtx.currentTime;
     var releaseTime = Math.max(0.02, currentRelease);
     v.gain.gain.cancelScheduledValues(now);
@@ -838,6 +882,9 @@
       selectedInput.onmidimessage = null;
       selectedInput = null;
     }
+    // A note left sounding when the cable drops has no note-off coming —
+    // silence the synth immediately rather than leaving it stuck until Mute.
+    stopAllVoicesImmediately();
   }
 
   function selectInput(input) {
