@@ -167,6 +167,14 @@
     border-left-color: var(--accent);
   }
 
+  .feed-row.marker {
+    border-left-color: var(--accent);
+  }
+
+  .feed-row.marker .note {
+    color: var(--accent);
+  }
+
   .feed-row .ch {
     color: var(--muted);
     font-size: 0.75rem;
@@ -226,6 +234,69 @@
   @keyframes rec-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.78; }
+  }
+
+  #marker-row {
+    flex-shrink: 0;
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  #marker-row.visible {
+    display: flex;
+  }
+
+  .marker-btn {
+    flex: 1 1 auto;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.7rem 1rem;
+  }
+
+  .marker-btn:active {
+    border-color: var(--accent);
+  }
+
+  #marker-custom-panel {
+    flex-shrink: 0;
+    display: none;
+    gap: 0.5rem;
+  }
+
+  #marker-custom-panel.visible {
+    display: flex;
+  }
+
+  #marker-custom-input {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.7rem 0.9rem;
+  }
+
+  #marker-custom-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  #marker-custom-confirm {
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #170a08;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.7rem 1.1rem;
   }
 
   #export-panel {
@@ -364,6 +435,13 @@
     <button id="record-btn">&#9679; Record</button>
   </div>
 
+  <div id="marker-row"></div>
+
+  <div id="marker-custom-panel">
+    <input id="marker-custom-input" type="text" placeholder="Label" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="marker-custom-confirm">Add</button>
+  </div>
+
   <div id="export-panel" hidden>
     <div id="buffer-info"></div>
     <div>
@@ -391,6 +469,10 @@
 
   var recordBtn = document.getElementById('record-btn');
   var recReadout = document.getElementById('rec-readout');
+  var markerRowEl = document.getElementById('marker-row');
+  var markerCustomPanel = document.getElementById('marker-custom-panel');
+  var markerCustomInput = document.getElementById('marker-custom-input');
+  var markerCustomConfirm = document.getElementById('marker-custom-confirm');
   var exportPanel = document.getElementById('export-panel');
   var filenameInput = document.getElementById('filename-input');
   var exportBtn = document.getElementById('export-btn');
@@ -421,6 +503,11 @@
   var noteOnCount = 0;
   var wakeLock = null;
   var timerHandle = null;
+
+  // Trivial to edit: this list drives the one-tap marker buttons.
+  var MARKER_PRESETS = ['watered', 'touched', 'moved'];
+  var recordedMarkers = [];
+  var pendingCustomMarker = null;
 
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -547,8 +634,8 @@
       return;
     }
     feedEl.innerHTML = feedEntries.map(function (e) {
-      return '<div class="feed-row ' + (e.type === 'cc' ? 'cc' : e.type) + '">' +
-        '<span class="ch">CH' + e.channel + '</span>' +
+      return '<div class="feed-row ' + e.type + '">' +
+        '<span class="ch">' + (e.type === 'marker' ? 'MARK' : 'CH' + e.channel) + '</span>' +
         '<span class="note">' + e.text + '</span>' +
         '<span class="vel">' + e.detail + '</span>' +
         '</div>';
@@ -652,14 +739,78 @@
 
     var summary = summarizeEvents(recordedEvents);
     bufferInfoEl.textContent = summary.total + ' events buffered — ' +
-      summary.noteOn + ' note-on, ' + summary.noteOff + ' note-off, ' + summary.cc + ' CC';
+      summary.noteOn + ' note-on, ' + summary.noteOff + ' note-off, ' + summary.cc + ' CC, ' +
+      recordedMarkers.length + ' marker' + (recordedMarkers.length === 1 ? '' : 's');
     console.log('Pentawald: ' + summary.total + ' events captured this take', recordedEvents);
+    console.log('Pentawald: ' + recordedMarkers.length + ' markers captured this take', recordedMarkers);
 
     exportPanel.hidden = false;
   }
 
+  // Stamps immediately at call time; a free-text label can be attached to
+  // the same marker object afterward without shifting when it landed.
+  function addMarker(label) {
+    if (!recording) return null;
+    var tsMs = performance.now() - recordStartPerf;
+    var marker = {
+      type: 'marker',
+      tsMs: tsMs,
+      label: label,
+      text: label,
+      detail: formatElapsed(tsMs)
+    };
+    recordedMarkers.push(marker);
+    addFeedEntry(marker);
+    return marker;
+  }
+
+  function finalizePendingCustomMarker() {
+    if (!pendingCustomMarker) return;
+    var label = markerCustomInput.value.trim() || 'marker';
+    pendingCustomMarker.label = label;
+    pendingCustomMarker.text = label;
+    pendingCustomMarker = null;
+    markerCustomPanel.classList.remove('visible');
+    markerCustomInput.value = '';
+    renderFeed();
+  }
+
+  MARKER_PRESETS.forEach(function (label) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'marker-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', function () {
+      finalizePendingCustomMarker();
+      addMarker(label);
+    });
+    markerRowEl.appendChild(btn);
+  });
+
+  var markerCustomBtn = document.createElement('button');
+  markerCustomBtn.type = 'button';
+  markerCustomBtn.className = 'marker-btn';
+  markerCustomBtn.textContent = '+ marker';
+  markerCustomBtn.addEventListener('click', function () {
+    finalizePendingCustomMarker();
+    var marker = addMarker('marker…');
+    if (!marker) return;
+    pendingCustomMarker = marker;
+    markerCustomInput.value = '';
+    markerCustomPanel.classList.add('visible');
+    markerCustomInput.focus();
+  });
+  markerRowEl.appendChild(markerCustomBtn);
+
+  markerCustomConfirm.addEventListener('click', finalizePendingCustomMarker);
+  markerCustomInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') finalizePendingCustomMarker();
+  });
+
   function startRecording() {
     recordedEvents = [];
+    recordedMarkers = [];
+    pendingCustomMarker = null;
     noteOnCount = 0;
     recordStartPerf = performance.now();
     recordStartDate = new Date();
@@ -667,6 +818,8 @@
     exportPanel.hidden = true;
     recordBtn.textContent = '■ Stop';
     recordBtn.classList.add('recording');
+    markerRowEl.classList.add('visible');
+    markerCustomPanel.classList.remove('visible');
     updateReadout();
     acquireWakeLock();
     timerHandle = setInterval(updateReadout, 250);
@@ -675,11 +828,14 @@
   function stopRecording() {
     recording = false;
     recordedDurationMs = performance.now() - recordStartPerf;
+    finalizePendingCustomMarker();
     clearInterval(timerHandle);
     timerHandle = null;
     releaseWakeLock();
     recordBtn.textContent = '● Record';
     recordBtn.classList.remove('recording');
+    markerRowEl.classList.remove('visible');
+    markerCustomPanel.classList.remove('visible');
     updateReadout();
     showExportPanel();
   }
@@ -694,6 +850,8 @@
 
   discardBtn.addEventListener('click', function () {
     recordedEvents = [];
+    recordedMarkers = [];
+    pendingCustomMarker = null;
     noteOnCount = 0;
     exportPanel.hidden = true;
     showExportStatus('');
@@ -742,11 +900,27 @@
     return Math.round(ms * TICKS_PER_MS);
   }
 
-  function buildTempoTrack() {
+  function buildTempoTrack(markers, durationMs) {
     var bytes = trackNameEvent('Tempo');
-    bytes = bytes.concat(writeVarLen(0), [0xff, 0x51, 0x03], uint24BE(TEMPO_US_PER_QUARTER)); // 120 BPM
-    bytes = bytes.concat(writeVarLen(0), [0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]); // 4/4
-    bytes = bytes.concat(writeVarLen(0), [0xff, 0x2f, 0x00]);
+    var prevTick = 0;
+
+    function emit(tick, metaBytes) {
+      var delta = Math.max(0, tick - prevTick);
+      prevTick = tick;
+      bytes = bytes.concat(writeVarLen(delta), metaBytes);
+    }
+
+    emit(0, [0xff, 0x51, 0x03].concat(uint24BE(TEMPO_US_PER_QUARTER))); // 120 BPM
+    emit(0, [0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]); // 4/4
+
+    markers.slice().sort(function (a, b) { return a.tsMs - b.tsMs; }).forEach(function (m) {
+      var textBytes = [];
+      for (var i = 0; i < m.label.length; i++) textBytes.push(m.label.charCodeAt(i) & 0xff);
+      emit(msToTicks(m.tsMs), [0xff, 0x06].concat(writeVarLen(textBytes.length), textBytes));
+    });
+
+    var trailing = Math.max(0, msToTicks(durationMs) - prevTick);
+    bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
     return makeChunk('MTrk', bytes);
   }
 
@@ -801,7 +975,7 @@
     return makeChunk('MTrk', bytes);
   }
 
-  function buildMidiFile(evts, durationMs) {
+  function buildMidiFile(evts, markers, durationMs) {
     var channelMap = {};
     evts.forEach(function (e) {
       if (!channelMap[e.channel]) channelMap[e.channel] = [];
@@ -809,7 +983,7 @@
     });
     var channels = Object.keys(channelMap).map(Number).sort(function (a, b) { return a - b; });
 
-    var tracks = [buildTempoTrack()];
+    var tracks = [buildTempoTrack(markers, durationMs)];
     channels.forEach(function (ch) {
       tracks.push(buildChannelTrack(ch, channelMap[ch], durationMs));
     });
@@ -866,7 +1040,7 @@
     shareDiagnosticEl.textContent = '';
     shareDiagnosticEl.classList.remove('visible');
 
-    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
+    var bytes = buildMidiFile(recordedEvents, recordedMarkers, recordedDurationMs);
     var filename = sanitizeFilename(filenameInput.value);
     var blob = new Blob([bytes], { type: 'audio/midi' });
 
