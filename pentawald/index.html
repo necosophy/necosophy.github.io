@@ -602,29 +602,52 @@
   // note-on/off — it never touches recordedEvents, so muting or tweaking
   // it can't affect what gets recorded or exported. ---
 
+  // "pluck" uses a short filtered noise burst instead of an oscillator —
+  // a raw sawtooth pluck read as harsh/buzzy, especially with several
+  // firing at once. voiceType is separate from the waveform control:
+  // pad/bell stay oscillator-based and respond to it, pluck doesn't.
   var SYNTH_PRESETS = {
-    pluck: { attack: 0.005, release: 0.25, cutoff: 3200, waveform: 'sawtooth' },
-    pad: { attack: 0.4, release: 1.2, cutoff: 1200, waveform: 'triangle' },
-    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine' }
+    pluck: { attack: 0.001, release: 0.15, cutoff: 2600, waveform: 'triangle', voiceType: 'noise' },
+    pad: { attack: 0.4, release: 1.2, cutoff: 1200, waveform: 'triangle', voiceType: 'tonal' },
+    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine', voiceType: 'tonal' }
   };
 
   var audioCtx = null;
   var masterGain = null;
+  var sharedFilter = null;
+  var noiseBuffer = null;
   var voices = {};
+  var voiceOrder = [];
+  var VOICE_LIMIT = 12;
   var synthMuted = false;
   var currentAttack = SYNTH_PRESETS.pluck.attack;
   var currentRelease = SYNTH_PRESETS.pluck.release;
   var currentCutoff = SYNTH_PRESETS.pluck.cutoff;
   var currentWaveform = SYNTH_PRESETS.pluck.waveform;
+  var currentVoiceType = SYNTH_PRESETS.pluck.voiceType;
 
   function initAudio() {
     if (audioCtx) return;
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     audioCtx = new AC();
+
     masterGain = audioCtx.createGain();
     masterGain.gain.value = synthMuted ? 0 : 0.8;
-    masterGain.connect(audioCtx.destination);
+
+    // One filter shared by every voice, rather than one per voice — far
+    // cheaper under heavy simultaneous note traffic, which is where the
+    // crackling came from.
+    sharedFilter = audioCtx.createBiquadFilter();
+    sharedFilter.type = 'lowpass';
+    sharedFilter.frequency.value = currentCutoff;
+
+    masterGain.connect(sharedFilter);
+    sharedFilter.connect(audioCtx.destination);
+
+    noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+    var data = noiseBuffer.getChannelData(0);
+    for (var i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
 
   // iOS requires a user gesture before audio can start; harmless on
@@ -638,6 +661,11 @@
     return 440 * Math.pow(2, (note - 69) / 12);
   }
 
+  function removeFromVoiceOrder(key) {
+    var idx = voiceOrder.indexOf(key);
+    if (idx !== -1) voiceOrder.splice(idx, 1);
+  }
+
   function synthNoteOn(channel, note, velocity) {
     if (!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -645,13 +673,24 @@
     var key = channel + '_' + note;
     stopVoiceImmediately(key);
 
-    var osc = audioCtx.createOscillator();
-    osc.type = currentWaveform;
-    osc.frequency.value = noteFrequency(note);
+    // A burst of rapid, differently-pitched notes (rather than one pitch
+    // retriggering) wouldn't get capped above — this is the backstop
+    // against unbounded polyphony piling up under heavy note traffic.
+    if (voiceOrder.length >= VOICE_LIMIT) {
+      stopVoiceImmediately(voiceOrder[0]);
+    }
 
-    var filter = audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = currentCutoff;
+    var isNoise = currentVoiceType === 'noise';
+    var source;
+    if (isNoise) {
+      source = audioCtx.createBufferSource();
+      source.buffer = noiseBuffer;
+      source.loop = true;
+    } else {
+      source = audioCtx.createOscillator();
+      source.type = currentWaveform;
+      source.frequency.value = noteFrequency(note);
+    }
 
     var gainNode = audioCtx.createGain();
     var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23);
@@ -659,12 +698,19 @@
     gainNode.gain.setValueAtTime(0, now);
     gainNode.gain.linearRampToValueAtTime(peak, now + Math.max(0.001, currentAttack));
 
-    osc.connect(filter);
-    filter.connect(gainNode);
+    source.connect(gainNode);
     gainNode.connect(masterGain);
-    osc.start(now);
+    source.start(now);
 
-    voices[key] = { osc: osc, filter: filter, gain: gainNode };
+    // Proactively free the small per-voice subgraph once it finishes,
+    // instead of waiting on garbage collection to notice it's unreachable.
+    source.onended = function () {
+      try { source.disconnect(); } catch (err) {}
+      try { gainNode.disconnect(); } catch (err) {}
+    };
+
+    voices[key] = { source: source, gain: gainNode, isNoise: isNoise };
+    voiceOrder.push(key);
   }
 
   function stopVoiceImmediately(key) {
@@ -673,8 +719,9 @@
     var now = audioCtx.currentTime;
     v.gain.gain.cancelScheduledValues(now);
     v.gain.gain.setValueAtTime(0.0001, now);
-    try { v.osc.stop(now + 0.01); } catch (err) {}
+    try { v.source.stop(now + 0.01); } catch (err) {}
     delete voices[key];
+    removeFromVoiceOrder(key);
   }
 
   function synthNoteOff(channel, note) {
@@ -687,16 +734,17 @@
     v.gain.gain.cancelScheduledValues(now);
     v.gain.gain.setValueAtTime(v.gain.gain.value, now);
     v.gain.gain.linearRampToValueAtTime(0.0001, now + releaseTime);
-    v.osc.stop(now + releaseTime + 0.05);
+    v.source.stop(now + releaseTime + 0.05);
     delete voices[key];
+    removeFromVoiceOrder(key);
   }
 
   function applyLiveControlsToVoices() {
     if (!audioCtx) return;
     var now = audioCtx.currentTime;
+    sharedFilter.frequency.setTargetAtTime(currentCutoff, now, 0.01);
     Object.keys(voices).forEach(function (key) {
-      voices[key].filter.frequency.setTargetAtTime(currentCutoff, now, 0.01);
-      voices[key].osc.type = currentWaveform;
+      if (!voices[key].isNoise) voices[key].source.type = currentWaveform;
     });
   }
 
@@ -717,6 +765,7 @@
       currentRelease = preset.release;
       currentCutoff = preset.cutoff;
       currentWaveform = preset.waveform;
+      currentVoiceType = preset.voiceType;
       synthAttackInput.value = currentAttack;
       synthReleaseInput.value = currentRelease;
       synthCutoffInput.value = currentCutoff;
