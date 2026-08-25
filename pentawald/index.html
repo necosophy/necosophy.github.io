@@ -567,6 +567,7 @@
 
   var midiAccess = null;
   var selectedInput = null;
+  var lastMIDIMessageAt = 0;
   var feedEntries = [];
   var FEED_LIMIT = 20;
 
@@ -602,15 +603,18 @@
   // note-on/off — it never touches recordedEvents, so muting or tweaking
   // it can't affect what gets recorded or exported. ---
 
-  // "pluck" uses a short filtered noise burst instead of an oscillator —
+  // "noise" uses a short filtered noise burst instead of an oscillator —
   // a raw sawtooth pluck read as harsh/buzzy, especially with several
   // firing at once. voiceType is separate from the waveform control:
-  // pad/bell stay oscillator-based and respond to it, pluck doesn't.
+  // pad/bell stay oscillator-based and respond to it, noise doesn't.
+  // Listed last (pad/bell first) and defaults to a low cutoff — 10% up
+  // the 200-8000 slider range — so it doesn't hit the highs hard.
   var SYNTH_PRESETS = {
-    pluck: { attack: 0.001, release: 0.15, cutoff: 2600, waveform: 'triangle', voiceType: 'noise' },
     pad: { attack: 0.4, release: 1.2, cutoff: 1200, waveform: 'triangle', voiceType: 'tonal' },
-    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine', voiceType: 'tonal' }
+    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine', voiceType: 'tonal' },
+    noise: { attack: 0.001, release: 0.15, cutoff: 980, waveform: 'triangle', voiceType: 'noise' }
   };
+  var DEFAULT_PRESET_NAME = Object.keys(SYNTH_PRESETS)[0];
 
   var audioCtx = null;
   var masterGain = null;
@@ -620,11 +624,11 @@
   var voiceOrder = [];
   var VOICE_LIMIT = 12;
   var synthMuted = false;
-  var currentAttack = SYNTH_PRESETS.pluck.attack;
-  var currentRelease = SYNTH_PRESETS.pluck.release;
-  var currentCutoff = SYNTH_PRESETS.pluck.cutoff;
-  var currentWaveform = SYNTH_PRESETS.pluck.waveform;
-  var currentVoiceType = SYNTH_PRESETS.pluck.voiceType;
+  var currentAttack = SYNTH_PRESETS[DEFAULT_PRESET_NAME].attack;
+  var currentRelease = SYNTH_PRESETS[DEFAULT_PRESET_NAME].release;
+  var currentCutoff = SYNTH_PRESETS[DEFAULT_PRESET_NAME].cutoff;
+  var currentWaveform = SYNTH_PRESETS[DEFAULT_PRESET_NAME].waveform;
+  var currentVoiceType = SYNTH_PRESETS[DEFAULT_PRESET_NAME].voiceType;
 
   function initAudio() {
     if (audioCtx) return;
@@ -926,6 +930,8 @@
   }
 
   function onMIDIMessage(event) {
+    lastMIDIMessageAt = Date.now();
+
     var data = event.data;
     var command = data[0] >> 4;
     var channel = (data[0] & 0x0f) + 1;
@@ -1406,6 +1412,25 @@
       downloadBlob(blob, filename);
     }
   });
+
+  // Physical USB disconnects don't reliably fire MIDIAccess.onstatechange
+  // on every Android/Chrome + USB-OTG combination, so device state isn't
+  // trusted alone: re-poll the input list periodically as a fallback.
+  setInterval(function () {
+    if (midiAccess) refreshDevices();
+  }, 1500);
+
+  // A stuck note has no dependency on the browser noticing the device is
+  // gone at all — if this device normally fires continuously and nothing
+  // has arrived in a while, silence what's still sounding regardless of
+  // what onstatechange/polling conclude about the connection itself.
+  var SILENCE_TIMEOUT_MS = 2000;
+  setInterval(function () {
+    if (Object.keys(voices).length > 0 && lastMIDIMessageAt &&
+        (Date.now() - lastMIDIMessageAt) > SILENCE_TIMEOUT_MS) {
+      stopAllVoicesImmediately();
+    }
+  }, 500);
 
   initMIDI();
 })();
