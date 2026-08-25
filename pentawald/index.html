@@ -293,6 +293,16 @@
     padding: 0.9rem 1rem;
   }
 
+  #test-share-btn {
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px dashed var(--hairline);
+    border-radius: 4px;
+    padding: 0.6rem 1rem;
+  }
+
   #export-status {
     min-height: 1.2em;
     font-size: 0.8rem;
@@ -364,6 +374,7 @@
       <button id="export-btn">Export .mid</button>
       <button id="discard-btn">Discard</button>
     </div>
+    <button id="test-share-btn" type="button">Test text share (debug)</button>
     <div id="export-status" aria-live="polite"></div>
     <pre id="share-diagnostic"></pre>
   </div>
@@ -384,6 +395,7 @@
   var filenameInput = document.getElementById('filename-input');
   var exportBtn = document.getElementById('export-btn');
   var discardBtn = document.getElementById('discard-btn');
+  var testShareBtn = document.getElementById('test-share-btn');
   var exportStatusEl = document.getElementById('export-status');
   var bufferInfoEl = document.getElementById('buffer-info');
   var shareDiagnosticEl = document.getElementById('share-diagnostic');
@@ -963,6 +975,36 @@
     // (no await/setTimeout before it), so it still carries the tap's
     // user activation.
     attemptShareOnce(blob, filename, candidates);
+  });
+
+  // Isolates whether a device/browser is blocking Web Share entirely
+  // (text share also fails) versus just refusing file shares.
+  testShareBtn.addEventListener('click', function () {
+    shareLog = [];
+    shareDiagnosticEl.textContent = '';
+    shareDiagnosticEl.classList.remove('visible');
+
+    logShare('Testing navigator.share() with plain text, no file…');
+    if (!navigator.share) {
+      logShare('navigator.share is NOT available on this browser.');
+      return;
+    }
+    try {
+      Promise.resolve(navigator.share({
+        title: 'Pentawald test',
+        text: 'Pentawald share test — if this reached you, plain text sharing works on this device.'
+      })).then(function () {
+        logShare('Text share succeeded — Web Share works here for text, so the block is specific to file sharing.');
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') {
+          logShare('Text share cancelled by user — the sheet did appear, so Web Share works on this device.');
+          return;
+        }
+        logShare('Text share rejected: ' + describeError(err) + ' — Web Share itself looks blocked here, not just file sharing.');
+      });
+    } catch (err) {
+      logShare('Text share threw: ' + describeError(err));
+    }
   });
 
   initMIDI();
