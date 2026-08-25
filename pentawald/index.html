@@ -313,6 +313,16 @@
     gap: 0.5rem;
   }
 
+  #synth-controls-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  #synth-controls-row[hidden] {
+    display: none;
+  }
+
   .synth-preset-btn {
     flex: 1 1 auto;
     font-family: inherit;
@@ -499,26 +509,28 @@
 
   <div id="synth-panel">
     <div id="synth-preset-row"></div>
-    <div class="synth-control">
-      <label for="synth-attack">Attack</label>
-      <input id="synth-attack" type="range" min="0.001" max="1" step="0.001">
-    </div>
-    <div class="synth-control">
-      <label for="synth-release">Release</label>
-      <input id="synth-release" type="range" min="0.05" max="3" step="0.01">
-    </div>
-    <div class="synth-control">
-      <label for="synth-cutoff">Cutoff</label>
-      <input id="synth-cutoff" type="range" min="200" max="8000" step="10">
-    </div>
-    <div class="synth-control">
-      <label for="synth-waveform">Wave</label>
-      <select id="synth-waveform">
-        <option value="sine">sine</option>
-        <option value="triangle">triangle</option>
-        <option value="sawtooth">sawtooth</option>
-        <option value="square">square</option>
-      </select>
+    <div id="synth-controls-row" hidden>
+      <div class="synth-control">
+        <label for="synth-attack">Attack</label>
+        <input id="synth-attack" type="range" min="0.001" max="1" step="0.001">
+      </div>
+      <div class="synth-control">
+        <label for="synth-release">Release</label>
+        <input id="synth-release" type="range" min="0.05" max="3" step="0.01">
+      </div>
+      <div class="synth-control">
+        <label for="synth-cutoff">Cutoff</label>
+        <input id="synth-cutoff" type="range" min="200" max="8000" step="10">
+      </div>
+      <div class="synth-control">
+        <label for="synth-waveform">Wave</label>
+        <select id="synth-waveform">
+          <option value="sine">sine</option>
+          <option value="triangle">triangle</option>
+          <option value="sawtooth">sawtooth</option>
+          <option value="square">square</option>
+        </select>
+      </div>
     </div>
     <button id="synth-mute-btn" type="button">Mute</button>
   </div>
@@ -603,23 +615,22 @@
   // note-on/off — it never touches recordedEvents, so muting or tweaking
   // it can't affect what gets recorded or exported. ---
 
-  // "noise" uses a short filtered noise burst instead of an oscillator —
-  // a raw sawtooth pluck read as harsh/buzzy, especially with several
-  // firing at once. voiceType is separate from the waveform control:
-  // pad/bell stay oscillator-based and respond to it, noise doesn't.
+  // "noise" is still an oscillator like pad/bell (a sawtooth, per its
+  // waveform below) — what makes it "noise"/percussive is voiceType:
+  // it decays on its own shortly after the hit (see synthNoteOn) instead
+  // of sustaining for as long as the note is held.
   // Listed last (pad/bell first) and defaults to a low cutoff — 10% up
   // the 200-8000 slider range — so it doesn't hit the highs hard.
   var SYNTH_PRESETS = {
     pad: { attack: 0.4, release: 1.2, cutoff: 1200, waveform: 'triangle', voiceType: 'tonal' },
-    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine', voiceType: 'tonal' },
-    noise: { attack: 0.001, release: 0.15, cutoff: 980, waveform: 'triangle', voiceType: 'noise' }
+    bell: { attack: 0.031, release: 0.2, cutoff: 980, waveform: 'sine', voiceType: 'tonal' },
+    noise: { attack: 0.001, release: 0.15, cutoff: 980, waveform: 'sawtooth', voiceType: 'noise' }
   };
   var DEFAULT_PRESET_NAME = Object.keys(SYNTH_PRESETS)[0];
 
   var audioCtx = null;
   var masterGain = null;
   var sharedFilter = null;
-  var noiseBuffer = null;
   var voices = {};
   var voiceOrder = [];
   var VOICE_LIMIT = 12;
@@ -648,10 +659,6 @@
 
     masterGain.connect(sharedFilter);
     sharedFilter.connect(audioCtx.destination);
-
-    noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
-    var data = noiseBuffer.getChannelData(0);
-    for (var i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
 
   // iOS requires a user gesture before audio can start; harmless on
@@ -700,56 +707,36 @@
       stopVoiceImmediately(voiceOrder[0]);
     }
 
-    var isNoise = currentVoiceType === 'noise';
-    var source, noiseFilter;
-    if (isNoise) {
-      source = audioCtx.createBufferSource();
-      source.buffer = noiseBuffer;
-      source.loop = true;
-      // Bandpassing the noise gives it a percussive "tick" character
-      // instead of reading as raw hiss. Only percussive voices carry
-      // this extra node — they're short-lived by design (see the decay
-      // below), so it doesn't reintroduce the per-voice-filter CPU cost
-      // the shared filter was meant to avoid for long-held tonal voices.
-      noiseFilter = audioCtx.createBiquadFilter();
-      noiseFilter.type = 'bandpass';
-      noiseFilter.frequency.value = Math.min(currentCutoff, 4000);
-      noiseFilter.Q.value = 1.1;
-    } else {
-      source = audioCtx.createOscillator();
-      source.type = currentWaveform;
-      source.frequency.value = noteFrequency(note);
-    }
+    var percussive = currentVoiceType === 'noise';
+
+    var source = audioCtx.createOscillator();
+    source.type = currentWaveform;
+    source.frequency.value = noteFrequency(note);
 
     var gainNode = audioCtx.createGain();
-    var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23) * (isNoise ? 0.55 : 1);
+    var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23);
     var now = audioCtx.currentTime;
     var attackTime = Math.max(0.001, currentAttack);
     gainNode.gain.setValueAtTime(0, now);
     gainNode.gain.linearRampToValueAtTime(peak, now + attackTime);
 
-    if (isNoise) {
-      source.connect(noiseFilter);
-      noiseFilter.connect(gainNode);
-    } else {
-      source.connect(gainNode);
-    }
+    source.connect(gainNode);
     gainNode.connect(masterGain);
     source.start(now);
 
-    if (isNoise) {
-      // Percussive: decays on its own shortly after the hit, like a real
-      // pluck or drum — regardless of how long the source note stays
-      // "on". Without this it just sustains at full volume for as long
-      // as the note is held, which for continuously-firing biofeedback
-      // input reads as one long noise no matter what release is set to.
+    if (percussive) {
+      // Decays on its own shortly after the hit, like a real pluck or
+      // drum — regardless of how long the source note stays "on".
+      // Without this it just sustains at full volume for as long as the
+      // note is held, which for continuously-firing biofeedback input
+      // reads as one long tone no matter what release is set to.
       var decayTime = Math.max(0.05, currentRelease);
       gainNode.gain.linearRampToValueAtTime(0.0001, now + attackTime + decayTime);
       source.stop(now + attackTime + decayTime + 0.05);
     }
 
     source.onended = makeVoiceCleanup(key, source, gainNode);
-    voices[key] = { source: source, gain: gainNode, isNoise: isNoise, percussive: isNoise };
+    voices[key] = { source: source, gain: gainNode, percussive: percussive };
     voiceOrder.push(key);
   }
 
@@ -792,7 +779,7 @@
     var now = audioCtx.currentTime;
     sharedFilter.frequency.setTargetAtTime(currentCutoff, now, 0.01);
     Object.keys(voices).forEach(function (key) {
-      if (!voices[key].isNoise) voices[key].source.type = currentWaveform;
+      voices[key].source.type = currentWaveform;
     });
   }
 
