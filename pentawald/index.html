@@ -292,6 +292,16 @@
     border-radius: 4px;
     padding: 0.9rem 1rem;
   }
+
+  #export-status {
+    min-height: 1.2em;
+    font-size: 0.8rem;
+    color: var(--live);
+  }
+
+  #export-status.error {
+    color: var(--rec);
+  }
 </style>
 </head>
 <body>
@@ -328,6 +338,7 @@
       <button id="export-btn">Export .mid</button>
       <button id="discard-btn">Discard</button>
     </div>
+    <div id="export-status" aria-live="polite"></div>
   </div>
 </main>
 
@@ -346,6 +357,7 @@
   var filenameInput = document.getElementById('filename-input');
   var exportBtn = document.getElementById('export-btn');
   var discardBtn = document.getElementById('discard-btn');
+  var exportStatusEl = document.getElementById('export-status');
 
   var midiAccess = null;
   var selectedInput = null;
@@ -572,8 +584,14 @@
     return y + '-' + mo + '-' + d + '_' + h + mi;
   }
 
+  function showExportStatus(text, isError) {
+    exportStatusEl.textContent = text;
+    exportStatusEl.classList.toggle('error', !!isError);
+  }
+
   function showExportPanel() {
     filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
+    showExportStatus('');
     exportPanel.hidden = false;
   }
 
@@ -615,6 +633,7 @@
     recordedEvents = [];
     noteOnCount = 0;
     exportPanel.hidden = true;
+    showExportStatus('');
     updateReadout();
   });
 
@@ -697,19 +716,7 @@
     return name;
   }
 
-  exportBtn.addEventListener('click', function () {
-    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
-    var filename = sanitizeFilename(filenameInput.value);
-    var blob = new Blob([bytes], { type: 'audio/midi' });
-
-    if (navigator.canShare && navigator.share) {
-      var file = new File([blob], filename, { type: 'audio/midi' });
-      if (navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: filename }).catch(function () {});
-        return;
-      }
-    }
-
+  function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -718,6 +725,47 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    showExportStatus('Downloaded ' + filename);
+  }
+
+  exportBtn.addEventListener('click', function () {
+    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
+    var filename = sanitizeFilename(filenameInput.value);
+    var blob = new Blob([bytes], { type: 'audio/midi' });
+
+    showExportStatus('Exporting…');
+
+    var file = null;
+    var shareable = false;
+    if (navigator.share) {
+      try {
+        file = new File([blob], filename, { type: 'audio/midi' });
+        shareable = !navigator.canShare || navigator.canShare({ files: [file] });
+      } catch (err) {
+        shareable = false;
+      }
+    }
+
+    if (!shareable) {
+      downloadBlob(blob, filename);
+      return;
+    }
+
+    try {
+      Promise.resolve(navigator.share({ files: [file], title: filename })).then(function () {
+        showExportStatus('Shared ' + filename);
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') {
+          showExportStatus('Share cancelled');
+          return;
+        }
+        console.warn('navigator.share failed, falling back to download', err);
+        downloadBlob(blob, filename);
+      });
+    } catch (err) {
+      console.warn('navigator.share threw, falling back to download', err);
+      downloadBlob(blob, filename);
+    }
   });
 
   initMIDI();
