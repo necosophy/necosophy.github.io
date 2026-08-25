@@ -15,6 +15,7 @@
     --hairline: #2a2a20;
     --accent: #b8874a;
     --live: #7a9463;
+    --rec: #c1503f;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -176,6 +177,121 @@
     color: var(--muted);
     font-size: 0.8rem;
   }
+
+  #transport {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding-top: 0.25rem;
+  }
+
+  #rec-readout {
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+  }
+
+  #rec-readout .time {
+    color: var(--ink);
+    font-size: 1rem;
+  }
+
+  #record-btn {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 1.15rem 1rem;
+  }
+
+  #record-btn:active {
+    border-color: var(--rec);
+  }
+
+  #record-btn.recording {
+    background: var(--rec);
+    border-color: var(--rec);
+    color: #170a08;
+    animation: rec-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.78; }
+  }
+
+  #export-panel {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--hairline);
+    margin-top: 0.25rem;
+  }
+
+  #export-panel[hidden] {
+    display: none;
+  }
+
+  #export-panel label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  #filename-input {
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+  }
+
+  #filename-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .export-actions {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  #export-btn {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #170a08;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+  }
+
+  #discard-btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+  }
 </style>
 </head>
 <body>
@@ -197,6 +313,22 @@
   <div id="note-feed">
     <div class="feed-empty">Waiting for notes&hellip;</div>
   </div>
+
+  <div id="transport">
+    <div id="rec-readout"><span class="time">00:00</span> &middot; 0 notes</div>
+    <button id="record-btn">&#9679; Record</button>
+  </div>
+
+  <div id="export-panel" hidden>
+    <div>
+      <label for="filename-input">Filename</label>
+      <input id="filename-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div class="export-actions">
+      <button id="export-btn">Export .mid</button>
+      <button id="discard-btn">Discard</button>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -208,10 +340,30 @@
   var pickerEl = document.getElementById('device-picker');
   var feedEl = document.getElementById('note-feed');
 
+  var recordBtn = document.getElementById('record-btn');
+  var recReadout = document.getElementById('rec-readout');
+  var exportPanel = document.getElementById('export-panel');
+  var filenameInput = document.getElementById('filename-input');
+  var exportBtn = document.getElementById('export-btn');
+  var discardBtn = document.getElementById('discard-btn');
+
   var midiAccess = null;
   var selectedInput = null;
   var feedEntries = [];
   var FEED_LIMIT = 20;
+
+  // Ticks per quarter note. At the fixed 120 BPM tempo this makes one tick
+  // equal exactly one millisecond, so recorded timestamps need no rounding.
+  var PPQ = 500;
+
+  var recording = false;
+  var recordStartPerf = 0;
+  var recordStartDate = null;
+  var recordedDurationMs = 0;
+  var recordedEvents = [];
+  var noteOnCount = 0;
+  var wakeLock = null;
+  var timerHandle = null;
 
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -290,6 +442,7 @@
     var data = event.data;
     var command = data[0] >> 4;
     var channel = (data[0] & 0x0f) + 1;
+    var tsMs = recording ? (performance.now() - recordStartPerf) : 0;
 
     if (command === 0x9 || command === 0x8) {
       var note = data[1];
@@ -301,6 +454,13 @@
         text: noteName(note),
         detail: 'vel ' + velocity
       });
+      if (recording) {
+        recordedEvents.push({ tsMs: tsMs, channel: channel, command: isOn ? 0x9 : 0x8, data1: note, data2: velocity });
+        if (isOn) {
+          noteOnCount++;
+          updateReadout();
+        }
+      }
     } else if (command === 0xb) {
       var controller = data[1];
       var value = data[2];
@@ -310,6 +470,9 @@
         text: 'CC ' + controller,
         detail: String(value)
       });
+      if (recording) {
+        recordedEvents.push({ tsMs: tsMs, channel: channel, command: 0xb, data1: controller, data2: value });
+      }
     }
   }
 
@@ -356,6 +519,205 @@
     } else {
       refreshDevices();
     }
+  });
+
+  function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  function formatElapsed(ms) {
+    var totalSeconds = Math.floor(ms / 1000);
+    var mm = Math.floor(totalSeconds / 60);
+    var ss = totalSeconds % 60;
+    return pad2(mm) + ':' + pad2(ss);
+  }
+
+  function updateReadout() {
+    var elapsed = recording ? (performance.now() - recordStartPerf) : 0;
+    recReadout.innerHTML = '<span class="time">' + formatElapsed(elapsed) + '</span> &middot; ' +
+      noteOnCount + ' note' + (noteOnCount === 1 ? '' : 's');
+  }
+
+  function acquireWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (lock) {
+      wakeLock = lock;
+      wakeLock.addEventListener('release', function () {
+        wakeLock = null;
+      });
+    }).catch(function () {
+      wakeLock = null;
+    });
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      wakeLock.release().catch(function () {});
+      wakeLock = null;
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (recording && document.visibilityState === 'visible' && !wakeLock) {
+      acquireWakeLock();
+    }
+  });
+
+  function defaultFilenamePrefix(date) {
+    var y = date.getFullYear();
+    var mo = pad2(date.getMonth() + 1);
+    var d = pad2(date.getDate());
+    var h = pad2(date.getHours());
+    var mi = pad2(date.getMinutes());
+    return y + '-' + mo + '-' + d + '_' + h + mi;
+  }
+
+  function showExportPanel() {
+    filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
+    exportPanel.hidden = false;
+  }
+
+  function startRecording() {
+    recordedEvents = [];
+    noteOnCount = 0;
+    recordStartPerf = performance.now();
+    recordStartDate = new Date();
+    recording = true;
+    exportPanel.hidden = true;
+    recordBtn.textContent = '■ Stop';
+    recordBtn.classList.add('recording');
+    updateReadout();
+    acquireWakeLock();
+    timerHandle = setInterval(updateReadout, 250);
+  }
+
+  function stopRecording() {
+    recording = false;
+    recordedDurationMs = performance.now() - recordStartPerf;
+    clearInterval(timerHandle);
+    timerHandle = null;
+    releaseWakeLock();
+    recordBtn.textContent = '● Record';
+    recordBtn.classList.remove('recording');
+    updateReadout();
+    showExportPanel();
+  }
+
+  recordBtn.addEventListener('click', function () {
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  });
+
+  discardBtn.addEventListener('click', function () {
+    recordedEvents = [];
+    noteOnCount = 0;
+    exportPanel.hidden = true;
+    updateReadout();
+  });
+
+  // --- Standard MIDI File (Type 1) writer ---
+
+  function writeVarLen(value) {
+    var bytes = [value & 0x7f];
+    value = Math.floor(value / 128);
+    while (value > 0) {
+      bytes.unshift((value & 0x7f) | 0x80);
+      value = Math.floor(value / 128);
+    }
+    return bytes;
+  }
+
+  function uint16BE(value) {
+    return [(value >>> 8) & 0xff, value & 0xff];
+  }
+
+  function uint24BE(value) {
+    return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+  }
+
+  function uint32BE(value) {
+    return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+  }
+
+  function makeChunk(id, bytes) {
+    var idBytes = [id.charCodeAt(0), id.charCodeAt(1), id.charCodeAt(2), id.charCodeAt(3)];
+    return idBytes.concat(uint32BE(bytes.length), bytes);
+  }
+
+  function buildTempoTrack() {
+    var bytes = [];
+    bytes = bytes.concat(writeVarLen(0), [0xff, 0x51, 0x03], uint24BE(500000)); // 120 BPM
+    bytes = bytes.concat(writeVarLen(0), [0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]); // 4/4
+    bytes = bytes.concat(writeVarLen(0), [0xff, 0x2f, 0x00]);
+    return makeChunk('MTrk', bytes);
+  }
+
+  function buildChannelTrack(channel, evts, durationMs) {
+    evts.sort(function (a, b) { return a.tsMs - b.tsMs; });
+    var bytes = [];
+    var prevTick = 0;
+    evts.forEach(function (e) {
+      var tick = Math.round(e.tsMs);
+      var delta = Math.max(0, tick - prevTick);
+      prevTick = tick;
+      var statusByte = (e.command << 4) | (channel - 1);
+      bytes = bytes.concat(writeVarLen(delta), [statusByte, e.data1, e.data2]);
+    });
+    var trailing = Math.max(0, Math.round(durationMs) - prevTick);
+    bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
+    return makeChunk('MTrk', bytes);
+  }
+
+  function buildMidiFile(evts, durationMs) {
+    var channelMap = {};
+    evts.forEach(function (e) {
+      if (!channelMap[e.channel]) channelMap[e.channel] = [];
+      channelMap[e.channel].push(e);
+    });
+    var channels = Object.keys(channelMap).map(Number).sort(function (a, b) { return a - b; });
+
+    var tracks = [buildTempoTrack()];
+    channels.forEach(function (ch) {
+      tracks.push(buildChannelTrack(ch, channelMap[ch], durationMs));
+    });
+
+    var headerBytes = uint16BE(1).concat(uint16BE(tracks.length), uint16BE(PPQ));
+    var allBytes = makeChunk('MThd', headerBytes);
+    tracks.forEach(function (t) { allBytes = allBytes.concat(t); });
+    return new Uint8Array(allBytes);
+  }
+
+  function sanitizeFilename(name) {
+    name = name.trim().replace(/[\\/:*?"<>|]+/g, '-');
+    if (!name) name = 'pentawald_' + Date.now();
+    if (!/\.mid$/i.test(name)) name += '.mid';
+    return name;
+  }
+
+  exportBtn.addEventListener('click', function () {
+    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
+    var filename = sanitizeFilename(filenameInput.value);
+    var blob = new Blob([bytes], { type: 'audio/midi' });
+
+    if (navigator.canShare && navigator.share) {
+      var file = new File([blob], filename, { type: 'audio/midi' });
+      if (navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: filename }).catch(function () {});
+        return;
+      }
+    }
+
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   });
 
   initMIDI();
