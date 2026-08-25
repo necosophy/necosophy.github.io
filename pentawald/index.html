@@ -856,125 +856,54 @@
     return name + ': ' + message;
   }
 
-  // Android/Chrome can restrict shareable files by MIME type and by file
-  // extension, independently, and canShare() saying yes doesn't guarantee
-  // share() will actually surface the sheet. Work through a list of
-  // MIME/extension combinations from most to least "correct", ending with
-  // renaming the file to .txt — wrong extension, but better than no share
-  // sheet at all.
-  function buildShareCandidates(filename) {
-    var stem = filename.replace(/\.mid$/i, '');
-    return [
-      { filename: filename, mimeType: 'audio/midi' },
-      { filename: filename, mimeType: 'application/octet-stream' },
-      { filename: filename, mimeType: 'audio/mid' },
-      { filename: filename, mimeType: 'text/plain' },
-      { filename: filename, mimeType: '' },
-      { filename: stem + '.txt', mimeType: 'text/plain' }
-    ];
-  }
-
-  function candidateLabel(candidate) {
-    return (candidate.mimeType || '(no MIME type)') + ' as "' + candidate.filename + '"';
-  }
-
-  // Chrome consumes the click's "user activation" the instant share() is
-  // called, whether it succeeds or fails — a second share() call chained
-  // off the first one's rejection always fails with "must be handling a
-  // user gesture", masking whatever that candidate's real answer would
-  // have been. So exactly one share() call happens per tap. canShare() is
-  // a plain capability query (no activation cost), so all candidates are
-  // checked and logged up front; only the single selected candidate is
-  // actually passed to share(). shareAttemptIndex persists across taps: a
-  // failure advances it so the next tap tries the next candidate fresh,
-  // and a success leaves it in place so later exports reuse what worked.
-  var shareAttemptIndex = 0;
-
-  function logCandidateChecks(blob, candidates) {
-    candidates.forEach(function (candidate) {
-      var label = candidateLabel(candidate);
-      var file;
-      try {
-        file = new File([blob], candidate.filename, { type: candidate.mimeType });
-      } catch (err) {
-        logShare(label + ' — File() threw: ' + describeError(err));
-        return;
-      }
-      if (!navigator.canShare) {
-        logShare(label + ' — navigator.canShare unavailable');
-        return;
-      }
-      try {
-        logShare(label + ' — canShare() = ' + navigator.canShare({ files: [file] }));
-      } catch (err) {
-        logShare(label + ' — canShare() threw: ' + describeError(err));
-      }
-    });
-  }
-
-  function attemptShareOnce(blob, originalFilename, candidates) {
-    var index = shareAttemptIndex % candidates.length;
-    var candidate = candidates[index];
-    var label = candidateLabel(candidate);
-    var file;
-
-    try {
-      file = new File([blob], candidate.filename, { type: candidate.mimeType });
-    } catch (err) {
-      logShare('Attempt — ' + label + ' — File() threw: ' + describeError(err));
-      shareAttemptIndex++;
-      downloadBlob(blob, originalFilename);
-      return;
-    }
-
-    logShare('Attempting share as: ' + label);
-
-    try {
-      Promise.resolve(navigator.share({ files: [file], title: candidate.filename })).then(function () {
-        logShare(label + ' — share() succeeded');
-        showExportStatus('Shared ' + candidate.filename);
-      }).catch(function (err) {
-        if (err && err.name === 'AbortError') {
-          logShare(label + ' — share() cancelled by user');
-          showExportStatus('Share cancelled');
-          return;
-        }
-        logShare(label + ' — share() rejected: ' + describeError(err));
-        shareAttemptIndex++;
-        logShare('Next Export tap will try: ' + candidateLabel(candidates[shareAttemptIndex % candidates.length]));
-        downloadBlob(blob, originalFilename);
-      });
-    } catch (err) {
-      logShare(label + ' — share() threw: ' + describeError(err));
-      shareAttemptIndex++;
-      logShare('Next Export tap will try: ' + candidateLabel(candidates[shareAttemptIndex % candidates.length]));
-      downloadBlob(blob, originalFilename);
-    }
-  }
-
+  // Everything between the click and share() below is synchronous — no
+  // canShare() precheck, no candidate cycling, nothing awaited. Building
+  // the Blob/File is plain synchronous computation, not an async
+  // operation, so it doesn't touch the tap's user-activation window;
+  // share() is the very first (and only) thing that can consume it.
   exportBtn.addEventListener('click', function () {
+    shareLog = [];
+    shareDiagnosticEl.textContent = '';
+    shareDiagnosticEl.classList.remove('visible');
+
     var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
     var filename = sanitizeFilename(filenameInput.value);
     var blob = new Blob([bytes], { type: 'audio/midi' });
 
     showExportStatus('Exporting…');
-    shareLog = [];
-    shareDiagnosticEl.textContent = '';
-    shareDiagnosticEl.classList.remove('visible');
 
-    logShare('navigator.share ' + (navigator.share ? 'is available' : 'is NOT available'));
     if (!navigator.share) {
+      logShare('navigator.share is NOT available');
       downloadBlob(blob, filename);
       return;
     }
-    logShare('navigator.canShare ' + (navigator.canShare ? 'is available' : 'is NOT available'));
 
-    var candidates = buildShareCandidates(filename);
-    logCandidateChecks(blob, candidates);
-    // Exactly one share() call below, synchronously in this click handler
-    // (no await/setTimeout before it), so it still carries the tap's
-    // user activation.
-    attemptShareOnce(blob, filename, candidates);
+    var file;
+    try {
+      file = new File([blob], filename, { type: 'audio/midi' });
+    } catch (err) {
+      logShare('File() threw: ' + describeError(err));
+      downloadBlob(blob, filename);
+      return;
+    }
+
+    try {
+      navigator.share({ files: [file], title: filename }).then(function () {
+        logShare('audio/midi — share() succeeded');
+        showExportStatus('Shared ' + filename);
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') {
+          logShare('audio/midi — share() cancelled by user');
+          showExportStatus('Share cancelled');
+          return;
+        }
+        logShare('audio/midi — share() rejected: ' + describeError(err));
+        downloadBlob(blob, filename);
+      });
+    } catch (err) {
+      logShare('audio/midi — share() threw: ' + describeError(err));
+      downloadBlob(blob, filename);
+    }
   });
 
   // Isolates whether a device/browser is blocking Web Share entirely
