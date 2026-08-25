@@ -371,9 +371,13 @@
   var feedEntries = [];
   var FEED_LIMIT = 20;
 
-  // Ticks per quarter note. At the fixed 120 BPM tempo this makes one tick
-  // equal exactly one millisecond, so recorded timestamps need no rounding.
-  var PPQ = 500;
+  // 960 ticks/quarter note is what most DAWs expect from an imported file.
+  // At the fixed 120 BPM tempo (500,000 microseconds/quarter) that gives
+  // ~0.52 ms per tick — sub-millisecond resolution, so recorded timestamps
+  // still round-trip with no perceptible quantization.
+  var PPQ = 960;
+  var TEMPO_US_PER_QUARTER = 500000; // 120 BPM
+  var TICKS_PER_MS = PPQ / (TEMPO_US_PER_QUARTER / 1000);
 
   var recording = false;
   var recordStartPerf = 0;
@@ -690,9 +694,19 @@
     return idBytes.concat(uint32BE(bytes.length), bytes);
   }
 
+  function trackNameEvent(name) {
+    var nameBytes = [];
+    for (var i = 0; i < name.length; i++) nameBytes.push(name.charCodeAt(i) & 0xff);
+    return writeVarLen(0).concat([0xff, 0x03], writeVarLen(nameBytes.length), nameBytes);
+  }
+
+  function msToTicks(ms) {
+    return Math.round(ms * TICKS_PER_MS);
+  }
+
   function buildTempoTrack() {
-    var bytes = [];
-    bytes = bytes.concat(writeVarLen(0), [0xff, 0x51, 0x03], uint24BE(500000)); // 120 BPM
+    var bytes = trackNameEvent('Tempo');
+    bytes = bytes.concat(writeVarLen(0), [0xff, 0x51, 0x03], uint24BE(TEMPO_US_PER_QUARTER)); // 120 BPM
     bytes = bytes.concat(writeVarLen(0), [0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]); // 4/4
     bytes = bytes.concat(writeVarLen(0), [0xff, 0x2f, 0x00]);
     return makeChunk('MTrk', bytes);
@@ -700,7 +714,7 @@
 
   function buildChannelTrack(channel, evts, durationMs) {
     evts.sort(function (a, b) { return a.tsMs - b.tsMs; });
-    var bytes = [];
+    var bytes = trackNameEvent('Channel ' + channel);
     var prevTick = 0;
     var heldNotes = {};
 
@@ -711,7 +725,7 @@
     }
 
     evts.forEach(function (e) {
-      var tick = Math.round(e.tsMs);
+      var tick = msToTicks(e.tsMs);
       var statusByte = (e.command << 4) | (channel - 1);
       if (e.command === 0x9) {
         // The source can re-trigger a pitch without ever sending an
@@ -725,20 +739,26 @@
         emit(tick, statusByte, e.data1, e.data2);
         heldNotes[e.data1] = true;
       } else if (e.command === 0x8) {
-        emit(tick, statusByte, e.data1, e.data2);
-        delete heldNotes[e.data1];
+        // A note-off with nothing currently held (e.g. a note that was
+        // already sounding when recording started) has no note-on to
+        // pair with in this file — discard it rather than emit an
+        // orphan event.
+        if (heldNotes[e.data1]) {
+          emit(tick, statusByte, e.data1, e.data2);
+          delete heldNotes[e.data1];
+        }
       } else {
         emit(tick, statusByte, e.data1, e.data2);
       }
     });
 
     // Close out anything still held when recording stopped.
-    var endTick = Math.max(prevTick, Math.round(durationMs));
+    var endTick = Math.max(prevTick, msToTicks(durationMs));
     Object.keys(heldNotes).forEach(function (note) {
       emit(endTick, 0x80 | (channel - 1), Number(note), 0);
     });
 
-    var trailing = Math.max(0, Math.round(durationMs) - prevTick);
+    var trailing = Math.max(0, msToTicks(durationMs) - prevTick);
     bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
     return makeChunk('MTrk', bytes);
   }
@@ -781,26 +801,26 @@
     showExportStatus('Downloaded ' + filename);
   }
 
-  exportBtn.addEventListener('click', function () {
-    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
-    var filename = sanitizeFilename(filenameInput.value);
-    var blob = new Blob([bytes], { type: 'audio/midi' });
+  // Android/Chrome can reject a share for a MIME type it doesn't recognize
+  // as shareable even after canShare() said yes. Try audio/midi first, then
+  // fall back to the generic binary type, before giving up on sharing.
+  var SHARE_MIME_CANDIDATES = ['audio/midi', 'application/octet-stream'];
 
-    showExportStatus('Exporting…');
-
-    var file = null;
-    var shareable = false;
-    if (navigator.share) {
-      try {
-        file = new File([blob], filename, { type: 'audio/midi' });
-        shareable = !navigator.canShare || navigator.canShare({ files: [file] });
-      } catch (err) {
-        shareable = false;
-      }
-    }
-
-    if (!shareable) {
+  function attemptShare(blob, filename, mimeIndex) {
+    if (mimeIndex >= SHARE_MIME_CANDIDATES.length) {
       downloadBlob(blob, filename);
+      return;
+    }
+    var mimeType = SHARE_MIME_CANDIDATES[mimeIndex];
+    var file;
+    try {
+      file = new File([blob], filename, { type: mimeType });
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+        attemptShare(blob, filename, mimeIndex + 1);
+        return;
+      }
+    } catch (err) {
+      attemptShare(blob, filename, mimeIndex + 1);
       return;
     }
 
@@ -812,13 +832,27 @@
           showExportStatus('Share cancelled');
           return;
         }
-        console.warn('navigator.share failed, falling back to download', err);
-        downloadBlob(blob, filename);
+        console.warn('share failed as ' + mimeType + ', trying next option', err);
+        attemptShare(blob, filename, mimeIndex + 1);
       });
     } catch (err) {
-      console.warn('navigator.share threw, falling back to download', err);
-      downloadBlob(blob, filename);
+      console.warn('share threw as ' + mimeType + ', trying next option', err);
+      attemptShare(blob, filename, mimeIndex + 1);
     }
+  }
+
+  exportBtn.addEventListener('click', function () {
+    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
+    var filename = sanitizeFilename(filenameInput.value);
+    var blob = new Blob([bytes], { type: 'audio/midi' });
+
+    showExportStatus('Exporting…');
+
+    if (!navigator.share) {
+      downloadBlob(blob, filename);
+      return;
+    }
+    attemptShare(blob, filename, 0);
   });
 
   initMIDI();
