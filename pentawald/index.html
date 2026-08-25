@@ -866,13 +866,42 @@
     return (candidate.mimeType || '(no MIME type)') + ' as "' + candidate.filename + '"';
   }
 
-  function attemptShare(blob, originalFilename, candidates, index) {
-    if (index >= candidates.length) {
-      logShare('All share attempts exhausted — falling back to download.');
-      downloadBlob(blob, originalFilename);
-      return;
-    }
+  // Chrome consumes the click's "user activation" the instant share() is
+  // called, whether it succeeds or fails — a second share() call chained
+  // off the first one's rejection always fails with "must be handling a
+  // user gesture", masking whatever that candidate's real answer would
+  // have been. So exactly one share() call happens per tap. canShare() is
+  // a plain capability query (no activation cost), so all candidates are
+  // checked and logged up front; only the single selected candidate is
+  // actually passed to share(). shareAttemptIndex persists across taps: a
+  // failure advances it so the next tap tries the next candidate fresh,
+  // and a success leaves it in place so later exports reuse what worked.
+  var shareAttemptIndex = 0;
 
+  function logCandidateChecks(blob, candidates) {
+    candidates.forEach(function (candidate) {
+      var label = candidateLabel(candidate);
+      var file;
+      try {
+        file = new File([blob], candidate.filename, { type: candidate.mimeType });
+      } catch (err) {
+        logShare(label + ' — File() threw: ' + describeError(err));
+        return;
+      }
+      if (!navigator.canShare) {
+        logShare(label + ' — navigator.canShare unavailable');
+        return;
+      }
+      try {
+        logShare(label + ' — canShare() = ' + navigator.canShare({ files: [file] }));
+      } catch (err) {
+        logShare(label + ' — canShare() threw: ' + describeError(err));
+      }
+    });
+  }
+
+  function attemptShareOnce(blob, originalFilename, candidates) {
+    var index = shareAttemptIndex % candidates.length;
     var candidate = candidates[index];
     var label = candidateLabel(candidate);
     var file;
@@ -880,29 +909,13 @@
     try {
       file = new File([blob], candidate.filename, { type: candidate.mimeType });
     } catch (err) {
-      logShare(label + ' — File() threw: ' + describeError(err));
-      attemptShare(blob, originalFilename, candidates, index + 1);
+      logShare('Attempt — ' + label + ' — File() threw: ' + describeError(err));
+      shareAttemptIndex++;
+      downloadBlob(blob, originalFilename);
       return;
     }
 
-    if (navigator.canShare) {
-      var canShareResult;
-      try {
-        canShareResult = navigator.canShare({ files: [file] });
-      } catch (err) {
-        logShare(label + ' — canShare() threw: ' + describeError(err));
-        attemptShare(blob, originalFilename, candidates, index + 1);
-        return;
-      }
-      if (!canShareResult) {
-        logShare(label + ' — canShare() = false');
-        attemptShare(blob, originalFilename, candidates, index + 1);
-        return;
-      }
-      logShare(label + ' — canShare() = true, calling share()…');
-    } else {
-      logShare(label + ' — navigator.canShare unavailable, calling share() anyway…');
-    }
+    logShare('Attempting share as: ' + label);
 
     try {
       Promise.resolve(navigator.share({ files: [file], title: candidate.filename })).then(function () {
@@ -915,11 +928,15 @@
           return;
         }
         logShare(label + ' — share() rejected: ' + describeError(err));
-        attemptShare(blob, originalFilename, candidates, index + 1);
+        shareAttemptIndex++;
+        logShare('Next Export tap will try: ' + candidateLabel(candidates[shareAttemptIndex % candidates.length]));
+        downloadBlob(blob, originalFilename);
       });
     } catch (err) {
       logShare(label + ' — share() threw: ' + describeError(err));
-      attemptShare(blob, originalFilename, candidates, index + 1);
+      shareAttemptIndex++;
+      logShare('Next Export tap will try: ' + candidateLabel(candidates[shareAttemptIndex % candidates.length]));
+      downloadBlob(blob, originalFilename);
     }
   }
 
@@ -940,7 +957,12 @@
     }
     logShare('navigator.canShare ' + (navigator.canShare ? 'is available' : 'is NOT available'));
 
-    attemptShare(blob, filename, buildShareCandidates(filename), 0);
+    var candidates = buildShareCandidates(filename);
+    logCandidateChecks(blob, candidates);
+    // Exactly one share() call below, synchronously in this click handler
+    // (no await/setTimeout before it), so it still carries the tap's
+    // user activation.
+    attemptShareOnce(blob, filename, candidates);
   });
 
   initMIDI();
