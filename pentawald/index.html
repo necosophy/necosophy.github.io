@@ -35,20 +35,51 @@
   }
 
   header {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
     padding: 1.25rem 1.25rem 0.5rem;
+  }
+
+  #pentawald-mark {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .mark-outline {
+    fill: none;
+    stroke: var(--live);
+    stroke-width: 3;
+    opacity: 0.3;
+  }
+
+  .mark-dot {
+    fill: var(--live);
+    opacity: 0.35;
+    transition: opacity 0.4s ease;
+  }
+
+  .mark-dot.active {
+    opacity: 1;
+  }
+
+  #header-text {
+    display: flex;
+    flex-direction: column;
   }
 
   .wordmark {
     font-size: 1.1rem;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
   }
 
   .tagline {
     font-size: 0.75rem;
     color: var(--muted);
-    margin-top: 0.15rem;
+    margin-top: 0.02rem;
   }
 
   main {
@@ -135,7 +166,11 @@
     flex-shrink: 0;
     display: block;
     width: 100%;
-    height: 13vh;
+    /* A fixed height rather than vh: on mobile, dynamic browser chrome
+       (address bar collapsing) keeps nudging vh-based sizes after
+       layout first settles, which is what left a residual gap at the
+       bottom even with per-frame resize correction. */
+    height: 100px;
     border-radius: 4px;
   }
 
@@ -486,8 +521,18 @@
 <body>
 
 <header>
-  <div class="wordmark">Pentawald</div>
-  <div class="tagline">field recorder</div>
+  <svg id="pentawald-mark" viewBox="0 0 100 100" aria-hidden="true">
+    <polygon class="mark-outline" points="50,12 86.14,38.26 72.34,80.74 27.66,80.74 13.86,38.26"></polygon>
+    <circle class="mark-dot" data-channel="1" cx="50" cy="12" r="6"></circle>
+    <circle class="mark-dot" data-channel="2" cx="86.14" cy="38.26" r="6"></circle>
+    <circle class="mark-dot" data-channel="3" cx="72.34" cy="80.74" r="6"></circle>
+    <circle class="mark-dot" data-channel="4" cx="27.66" cy="80.74" r="6"></circle>
+    <circle class="mark-dot" data-channel="5" cx="13.86" cy="38.26" r="6"></circle>
+  </svg>
+  <div id="header-text">
+    <div class="wordmark">Pentawald</div>
+    <div class="tagline">field recorder</div>
+  </div>
 </header>
 
 <main>
@@ -700,6 +745,20 @@ window.Visualizer = (function () {
 <script>
 (function () {
   'use strict';
+
+  // Header mark: a peripheral per-channel activity indicator, not tied
+  // to recording state — any note arriving on a channel briefly
+  // brightens that dot, whether or not a take is in progress.
+  var markDotTimers = {};
+  function pulseChannelDot(channel) {
+    var dot = document.querySelector('.mark-dot[data-channel="' + channel + '"]');
+    if (!dot) return;
+    dot.classList.add('active');
+    if (markDotTimers[channel]) clearTimeout(markDotTimers[channel]);
+    markDotTimers[channel] = setTimeout(function () {
+      dot.classList.remove('active');
+    }, 180);
+  }
 
   var statusEl = document.getElementById('device-status');
   var labelEl = document.getElementById('device-label');
@@ -1092,6 +1151,7 @@ window.Visualizer = (function () {
       if (isOn) {
         synthNoteOn(channel, note, velocity);
         Visualizer.trigger(note, velocity);
+        pulseChannelDot(channel);
       } else {
         synthNoteOff(channel, note);
       }
