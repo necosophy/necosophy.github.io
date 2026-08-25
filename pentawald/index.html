@@ -299,6 +299,90 @@
     padding: 0.7rem 1.1rem;
   }
 
+  #synth-panel {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  #synth-preset-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .synth-preset-btn {
+    flex: 1 1 auto;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.65rem 1rem;
+  }
+
+  .synth-preset-btn:active {
+    border-color: var(--accent);
+  }
+
+  .synth-preset-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .synth-control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .synth-control label {
+    width: 4rem;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .synth-control input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+
+  #synth-waveform {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.5rem 0.6rem;
+  }
+
+  #synth-mute-btn {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+  }
+
+  #synth-mute-btn.muted {
+    background: var(--rec);
+    border-color: var(--rec);
+    color: #170a08;
+  }
+
   #export-panel {
     flex-shrink: 0;
     display: flex;
@@ -364,16 +448,6 @@
     padding: 0.9rem 1rem;
   }
 
-  #test-share-btn {
-    font-family: inherit;
-    font-size: 0.75rem;
-    color: var(--muted);
-    background: transparent;
-    border: 1px dashed var(--hairline);
-    border-radius: 4px;
-    padding: 0.6rem 1rem;
-  }
-
   #export-status {
     min-height: 1.2em;
     font-size: 0.8rem;
@@ -389,25 +463,6 @@
     color: var(--muted);
   }
 
-  #share-diagnostic {
-    display: none;
-    font-family: inherit;
-    font-size: 0.72rem;
-    line-height: 1.5;
-    color: var(--muted);
-    background: var(--panel);
-    border: 1px solid var(--hairline);
-    border-radius: 4px;
-    padding: 0.65rem 0.75rem;
-    max-height: 9rem;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  #share-diagnostic.visible {
-    display: block;
-  }
 </style>
 </head>
 <body>
@@ -442,6 +497,32 @@
     <button id="marker-custom-confirm">Add</button>
   </div>
 
+  <div id="synth-panel">
+    <div id="synth-preset-row"></div>
+    <div class="synth-control">
+      <label for="synth-attack">Attack</label>
+      <input id="synth-attack" type="range" min="0.001" max="1" step="0.001">
+    </div>
+    <div class="synth-control">
+      <label for="synth-release">Release</label>
+      <input id="synth-release" type="range" min="0.05" max="3" step="0.01">
+    </div>
+    <div class="synth-control">
+      <label for="synth-cutoff">Cutoff</label>
+      <input id="synth-cutoff" type="range" min="200" max="8000" step="10">
+    </div>
+    <div class="synth-control">
+      <label for="synth-waveform">Wave</label>
+      <select id="synth-waveform">
+        <option value="sine">sine</option>
+        <option value="triangle">triangle</option>
+        <option value="sawtooth">sawtooth</option>
+        <option value="square">square</option>
+      </select>
+    </div>
+    <button id="synth-mute-btn" type="button">Mute</button>
+  </div>
+
   <div id="export-panel" hidden>
     <div id="buffer-info"></div>
     <div>
@@ -452,9 +533,7 @@
       <button id="export-btn">Export .mid</button>
       <button id="discard-btn">Discard</button>
     </div>
-    <button id="test-share-btn" type="button">Test text share (debug)</button>
     <div id="export-status" aria-live="polite"></div>
-    <pre id="share-diagnostic"></pre>
   </div>
 </main>
 
@@ -473,14 +552,18 @@
   var markerCustomPanel = document.getElementById('marker-custom-panel');
   var markerCustomInput = document.getElementById('marker-custom-input');
   var markerCustomConfirm = document.getElementById('marker-custom-confirm');
+  var synthPresetRow = document.getElementById('synth-preset-row');
+  var synthAttackInput = document.getElementById('synth-attack');
+  var synthReleaseInput = document.getElementById('synth-release');
+  var synthCutoffInput = document.getElementById('synth-cutoff');
+  var synthWaveformSelect = document.getElementById('synth-waveform');
+  var synthMuteBtn = document.getElementById('synth-mute-btn');
   var exportPanel = document.getElementById('export-panel');
   var filenameInput = document.getElementById('filename-input');
   var exportBtn = document.getElementById('export-btn');
   var discardBtn = document.getElementById('discard-btn');
-  var testShareBtn = document.getElementById('test-share-btn');
   var exportStatusEl = document.getElementById('export-status');
   var bufferInfoEl = document.getElementById('buffer-info');
-  var shareDiagnosticEl = document.getElementById('share-diagnostic');
 
   var midiAccess = null;
   var selectedInput = null;
@@ -514,6 +597,170 @@
   function noteName(n) {
     return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
   }
+
+  // --- Monitoring synth. Purely a live audio side-effect of incoming
+  // note-on/off — it never touches recordedEvents, so muting or tweaking
+  // it can't affect what gets recorded or exported. ---
+
+  var SYNTH_PRESETS = {
+    pluck: { attack: 0.005, release: 0.25, cutoff: 3200, waveform: 'sawtooth' },
+    pad: { attack: 0.4, release: 1.2, cutoff: 1200, waveform: 'triangle' },
+    bell: { attack: 0.01, release: 1.8, cutoff: 5000, waveform: 'sine' }
+  };
+
+  var audioCtx = null;
+  var masterGain = null;
+  var voices = {};
+  var synthMuted = false;
+  var currentAttack = SYNTH_PRESETS.pluck.attack;
+  var currentRelease = SYNTH_PRESETS.pluck.release;
+  var currentCutoff = SYNTH_PRESETS.pluck.cutoff;
+  var currentWaveform = SYNTH_PRESETS.pluck.waveform;
+
+  function initAudio() {
+    if (audioCtx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = synthMuted ? 0 : 0.8;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  // iOS requires a user gesture before audio can start; harmless on
+  // Android, so this runs unconditionally on the first tap anywhere.
+  document.addEventListener('pointerdown', function firstTap() {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }, { once: true, passive: true });
+
+  function noteFrequency(note) {
+    return 440 * Math.pow(2, (note - 69) / 12);
+  }
+
+  function synthNoteOn(channel, note, velocity) {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    var key = channel + '_' + note;
+    stopVoiceImmediately(key);
+
+    var osc = audioCtx.createOscillator();
+    osc.type = currentWaveform;
+    osc.frequency.value = noteFrequency(note);
+
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = currentCutoff;
+
+    var gainNode = audioCtx.createGain();
+    var peak = Math.min(0.28, 0.05 + (velocity / 127) * 0.23);
+    var now = audioCtx.currentTime;
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(peak, now + Math.max(0.001, currentAttack));
+
+    osc.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(masterGain);
+    osc.start(now);
+
+    voices[key] = { osc: osc, filter: filter, gain: gainNode };
+  }
+
+  function stopVoiceImmediately(key) {
+    var v = voices[key];
+    if (!v) return;
+    var now = audioCtx.currentTime;
+    v.gain.gain.cancelScheduledValues(now);
+    v.gain.gain.setValueAtTime(0.0001, now);
+    try { v.osc.stop(now + 0.01); } catch (err) {}
+    delete voices[key];
+  }
+
+  function synthNoteOff(channel, note) {
+    if (!audioCtx) return;
+    var key = channel + '_' + note;
+    var v = voices[key];
+    if (!v) return;
+    var now = audioCtx.currentTime;
+    var releaseTime = Math.max(0.02, currentRelease);
+    v.gain.gain.cancelScheduledValues(now);
+    v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+    v.gain.gain.linearRampToValueAtTime(0.0001, now + releaseTime);
+    v.osc.stop(now + releaseTime + 0.05);
+    delete voices[key];
+  }
+
+  function applyLiveControlsToVoices() {
+    if (!audioCtx) return;
+    var now = audioCtx.currentTime;
+    Object.keys(voices).forEach(function (key) {
+      voices[key].filter.frequency.setTargetAtTime(currentCutoff, now, 0.01);
+      voices[key].osc.type = currentWaveform;
+    });
+  }
+
+  function clearActivePresetHighlight() {
+    Array.prototype.forEach.call(synthPresetRow.children, function (btn) {
+      btn.classList.remove('active');
+    });
+  }
+
+  Object.keys(SYNTH_PRESETS).forEach(function (name) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'synth-preset-btn';
+    btn.textContent = name;
+    btn.addEventListener('click', function () {
+      var preset = SYNTH_PRESETS[name];
+      currentAttack = preset.attack;
+      currentRelease = preset.release;
+      currentCutoff = preset.cutoff;
+      currentWaveform = preset.waveform;
+      synthAttackInput.value = currentAttack;
+      synthReleaseInput.value = currentRelease;
+      synthCutoffInput.value = currentCutoff;
+      synthWaveformSelect.value = currentWaveform;
+      applyLiveControlsToVoices();
+      clearActivePresetHighlight();
+      btn.classList.add('active');
+    });
+    synthPresetRow.appendChild(btn);
+  });
+
+  synthAttackInput.value = currentAttack;
+  synthReleaseInput.value = currentRelease;
+  synthCutoffInput.value = currentCutoff;
+  synthWaveformSelect.value = currentWaveform;
+  synthPresetRow.children[0].classList.add('active');
+
+  synthAttackInput.addEventListener('input', function () {
+    currentAttack = parseFloat(synthAttackInput.value);
+    clearActivePresetHighlight();
+  });
+  synthReleaseInput.addEventListener('input', function () {
+    currentRelease = parseFloat(synthReleaseInput.value);
+    clearActivePresetHighlight();
+  });
+  synthCutoffInput.addEventListener('input', function () {
+    currentCutoff = parseFloat(synthCutoffInput.value);
+    applyLiveControlsToVoices();
+    clearActivePresetHighlight();
+  });
+  synthWaveformSelect.addEventListener('change', function () {
+    currentWaveform = synthWaveformSelect.value;
+    applyLiveControlsToVoices();
+    clearActivePresetHighlight();
+  });
+
+  synthMuteBtn.addEventListener('click', function () {
+    synthMuted = !synthMuted;
+    synthMuteBtn.classList.toggle('muted', synthMuted);
+    synthMuteBtn.textContent = synthMuted ? 'Unmute' : 'Mute';
+    if (masterGain) {
+      masterGain.gain.setTargetAtTime(synthMuted ? 0 : 0.8, audioCtx.currentTime, 0.01);
+    }
+  });
 
   function setStatus(text, connected) {
     labelEl.textContent = text;
@@ -604,6 +851,11 @@
           noteOnCount++;
           updateReadout();
         }
+      }
+      if (isOn) {
+        synthNoteOn(channel, note, velocity);
+      } else {
+        synthNoteOff(channel, note);
       }
     } else if (command === 0xb) {
       var controller = data[1];
@@ -734,8 +986,6 @@
   function showExportPanel() {
     filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
     showExportStatus('');
-    shareDiagnosticEl.textContent = '';
-    shareDiagnosticEl.classList.remove('visible');
 
     var summary = summarizeEvents(recordedEvents);
     bufferInfoEl.textContent = summary.total + ' events buffered — ' +
@@ -856,8 +1106,6 @@
     exportPanel.hidden = true;
     showExportStatus('');
     bufferInfoEl.textContent = '';
-    shareDiagnosticEl.textContent = '';
-    shareDiagnosticEl.classList.remove('visible');
     updateReadout();
   });
 
@@ -1013,16 +1261,6 @@
     showExportStatus('Downloaded ' + filename + ' — attach it from Downloads in Signal (or your files app).');
   }
 
-  var shareLog = [];
-
-  function logShare(line) {
-    shareLog.push(line);
-    shareDiagnosticEl.textContent = shareLog.join('\n');
-    shareDiagnosticEl.classList.add('visible');
-    shareDiagnosticEl.scrollTop = shareDiagnosticEl.scrollHeight;
-    console.log('Pentawald share: ' + line);
-  }
-
   function describeError(err) {
     if (!err) return 'unknown error';
     var name = err.name || 'Error';
@@ -1036,10 +1274,6 @@
   // operation, so it doesn't touch the tap's user-activation window;
   // share() is the very first (and only) thing that can consume it.
   exportBtn.addEventListener('click', function () {
-    shareLog = [];
-    shareDiagnosticEl.textContent = '';
-    shareDiagnosticEl.classList.remove('visible');
-
     var bytes = buildMidiFile(recordedEvents, recordedMarkers, recordedDurationMs);
     var filename = sanitizeFilename(filenameInput.value);
     var blob = new Blob([bytes], { type: 'audio/midi' });
@@ -1047,7 +1281,6 @@
     showExportStatus('Exporting…');
 
     if (!navigator.share) {
-      logShare('navigator.share is NOT available');
       downloadBlob(blob, filename);
       return;
     }
@@ -1056,57 +1289,25 @@
     try {
       file = new File([blob], filename, { type: 'audio/midi' });
     } catch (err) {
-      logShare('File() threw: ' + describeError(err));
+      console.warn('Pentawald share: File() threw, falling back to download', describeError(err));
       downloadBlob(blob, filename);
       return;
     }
 
     try {
       navigator.share({ files: [file], title: filename }).then(function () {
-        logShare('audio/midi — share() succeeded');
         showExportStatus('Shared ' + filename);
       }).catch(function (err) {
         if (err && err.name === 'AbortError') {
-          logShare('audio/midi — share() cancelled by user');
           showExportStatus('Share cancelled');
           return;
         }
-        logShare('audio/midi — share() rejected: ' + describeError(err));
+        console.warn('Pentawald share: rejected, falling back to download', describeError(err));
         downloadBlob(blob, filename);
       });
     } catch (err) {
-      logShare('audio/midi — share() threw: ' + describeError(err));
+      console.warn('Pentawald share: threw, falling back to download', describeError(err));
       downloadBlob(blob, filename);
-    }
-  });
-
-  // Isolates whether a device/browser is blocking Web Share entirely
-  // (text share also fails) versus just refusing file shares.
-  testShareBtn.addEventListener('click', function () {
-    shareLog = [];
-    shareDiagnosticEl.textContent = '';
-    shareDiagnosticEl.classList.remove('visible');
-
-    logShare('Testing navigator.share() with plain text, no file…');
-    if (!navigator.share) {
-      logShare('navigator.share is NOT available on this browser.');
-      return;
-    }
-    try {
-      Promise.resolve(navigator.share({
-        title: 'Pentawald test',
-        text: 'Pentawald share test — if this reached you, plain text sharing works on this device.'
-      })).then(function () {
-        logShare('Text share succeeded — Web Share works here for text, so the block is specific to file sharing.');
-      }).catch(function (err) {
-        if (err && err.name === 'AbortError') {
-          logShare('Text share cancelled by user — the sheet did appear, so Web Share works on this device.');
-          return;
-        }
-        logShare('Text share rejected: ' + describeError(err) + ' — Web Share itself looks blocked here, not just file sharing.');
-      });
-    } catch (err) {
-      logShare('Text share threw: ' + describeError(err));
     }
   });
 
