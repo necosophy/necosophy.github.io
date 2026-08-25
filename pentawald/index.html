@@ -131,6 +131,14 @@
     border-color: var(--accent);
   }
 
+  #visualizer-canvas {
+    flex-shrink: 0;
+    display: block;
+    width: 100%;
+    height: 26vh;
+    border-radius: 4px;
+  }
+
   #note-feed {
     flex: 1;
     overflow-y: auto;
@@ -491,6 +499,8 @@
 
   <div id="device-picker"></div>
 
+  <canvas id="visualizer-canvas" aria-hidden="true"></canvas>
+
   <div id="note-feed">
     <div class="feed-empty">Waiting for notes&hellip;</div>
   </div>
@@ -548,6 +558,107 @@
     <div id="export-status" aria-live="polite"></div>
   </div>
 </main>
+
+<script>
+// Visualizer module — deliberately isolated from the rest of the app so
+// it can be swapped or expanded later without touching MIDI/recording
+// logic. Public API is just init(canvasEl) and trigger(note, velocity).
+// Cheap by design: a capped particle count, no shadowBlur/filters, and
+// the fade-trail is one fillRect per frame rather than per-particle
+// bookkeeping.
+window.Visualizer = (function () {
+  'use strict';
+
+  var canvas, ctx, width = 0, height = 0;
+  var particles = [];
+  var MAX_PARTICLES = 60;
+  var running = false;
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function resize() {
+    if (!canvas) return;
+    var rect = canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    width = rect.width;
+    height = rect.height;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Pitch drives horizontal position, velocity drives size/speed/warmth.
+  function trigger(note, velocity) {
+    if (!ctx) return;
+    if (particles.length >= MAX_PARTICLES) particles.shift();
+
+    var pitchFrac = clamp((note - 24) / (96 - 24), 0, 1);
+    var velFrac = clamp(velocity / 127, 0, 1);
+
+    particles.push({
+      x: pitchFrac * width,
+      y: height * 0.5 + (Math.random() - 0.5) * height * 0.2,
+      vx: (Math.random() - 0.5) * 10,
+      vy: -30 - velFrac * 50,
+      r: 2 + velFrac * 6,
+      life: 1,
+      decay: 0.014 + Math.random() * 0.008,
+      warmth: velFrac
+    });
+  }
+
+  // Interpolates between the site's two accent colors — moss (low
+  // velocity) and copper (high velocity) — rather than introducing new
+  // hues per channel.
+  function particleColor(warmth, alpha) {
+    var r = Math.round(122 + (184 - 122) * warmth);
+    var g = Math.round(148 + (135 - 148) * warmth);
+    var b = Math.round(99 + (74 - 99) * warmth);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed(3) + ')';
+  }
+
+  function step() {
+    if (!running) return;
+
+    ctx.fillStyle = 'rgba(10, 10, 8, 0.22)';
+    ctx.fillRect(0, 0, width, height);
+
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx * 0.02;
+      p.y += p.vy * 0.02;
+      p.vy += 0.6;
+      p.life -= p.decay;
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      var alpha = Math.max(0, p.life);
+      ctx.beginPath();
+      ctx.fillStyle = particleColor(p.warmth, alpha);
+      ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  function init(canvasEl) {
+    canvas = canvasEl;
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+    if (!running) {
+      running = true;
+      requestAnimationFrame(step);
+    }
+  }
+
+  return { init: init, trigger: trigger };
+})();
+</script>
 
 <script>
 (function () {
@@ -943,6 +1054,7 @@
       }
       if (isOn) {
         synthNoteOn(channel, note, velocity);
+        Visualizer.trigger(note, velocity);
       } else {
         synthNoteOff(channel, note);
       }
@@ -1418,6 +1530,8 @@
       stopAllVoicesImmediately();
     }
   }, 500);
+
+  Visualizer.init(document.getElementById('visualizer-canvas'));
 
   initMIDI();
 })();
