@@ -836,7 +836,7 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    showExportStatus('Downloaded ' + filename);
+    showExportStatus('Downloaded ' + filename + ' — attach it from Downloads in Signal (or your files app).');
   }
 
   var shareLog = [];
