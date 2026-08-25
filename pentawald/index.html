@@ -302,6 +302,11 @@
   #export-status.error {
     color: var(--rec);
   }
+
+  #buffer-info {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
@@ -330,6 +335,7 @@
   </div>
 
   <div id="export-panel" hidden>
+    <div id="buffer-info"></div>
     <div>
       <label for="filename-input">Filename</label>
       <input id="filename-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -358,6 +364,7 @@
   var exportBtn = document.getElementById('export-btn');
   var discardBtn = document.getElementById('discard-btn');
   var exportStatusEl = document.getElementById('export-status');
+  var bufferInfoEl = document.getElementById('buffer-info');
 
   var midiAccess = null;
   var selectedInput = null;
@@ -589,9 +596,25 @@
     exportStatusEl.classList.toggle('error', !!isError);
   }
 
+  function summarizeEvents(evts) {
+    var summary = { total: evts.length, noteOn: 0, noteOff: 0, cc: 0 };
+    evts.forEach(function (e) {
+      if (e.command === 0x9) summary.noteOn++;
+      else if (e.command === 0x8) summary.noteOff++;
+      else if (e.command === 0xb) summary.cc++;
+    });
+    return summary;
+  }
+
   function showExportPanel() {
     filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
     showExportStatus('');
+
+    var summary = summarizeEvents(recordedEvents);
+    bufferInfoEl.textContent = summary.total + ' events buffered — ' +
+      summary.noteOn + ' note-on, ' + summary.noteOff + ' note-off, ' + summary.cc + ' CC';
+    console.log('Pentawald: ' + summary.total + ' events captured this take', recordedEvents);
+
     exportPanel.hidden = false;
   }
 
@@ -634,6 +657,7 @@
     noteOnCount = 0;
     exportPanel.hidden = true;
     showExportStatus('');
+    bufferInfoEl.textContent = '';
     updateReadout();
   });
 
@@ -678,13 +702,42 @@
     evts.sort(function (a, b) { return a.tsMs - b.tsMs; });
     var bytes = [];
     var prevTick = 0;
-    evts.forEach(function (e) {
-      var tick = Math.round(e.tsMs);
+    var heldNotes = {};
+
+    function emit(tick, statusByte, d1, d2) {
       var delta = Math.max(0, tick - prevTick);
       prevTick = tick;
+      bytes = bytes.concat(writeVarLen(delta), [statusByte, d1, d2]);
+    }
+
+    evts.forEach(function (e) {
+      var tick = Math.round(e.tsMs);
       var statusByte = (e.command << 4) | (channel - 1);
-      bytes = bytes.concat(writeVarLen(delta), [statusByte, e.data1, e.data2]);
+      if (e.command === 0x9) {
+        // The source can re-trigger a pitch without ever sending an
+        // explicit off (e.g. continuous biofeedback re-firing). Close
+        // the still-held note first so every note-on stays paired —
+        // an unterminated note-on is exactly what gets silently
+        // dropped by some DAWs' MIDI importers.
+        if (heldNotes[e.data1]) {
+          emit(tick, 0x80 | (channel - 1), e.data1, 0);
+        }
+        emit(tick, statusByte, e.data1, e.data2);
+        heldNotes[e.data1] = true;
+      } else if (e.command === 0x8) {
+        emit(tick, statusByte, e.data1, e.data2);
+        delete heldNotes[e.data1];
+      } else {
+        emit(tick, statusByte, e.data1, e.data2);
+      }
     });
+
+    // Close out anything still held when recording stopped.
+    var endTick = Math.max(prevTick, Math.round(durationMs));
+    Object.keys(heldNotes).forEach(function (note) {
+      emit(endTick, 0x80 | (channel - 1), Number(note), 0);
+    });
+
     var trailing = Math.max(0, Math.round(durationMs) - prevTick);
     bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
     return makeChunk('MTrk', bytes);
