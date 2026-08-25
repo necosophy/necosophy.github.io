@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Pentawald — field recorder</title>
+<meta name="description" content="Offline MIDI field recorder for biofeedback devices.">
+<meta name="theme-color" content="#0a0a08">
+<style>
+  :root {
+    --bg: #0a0a08;
+    --panel: #14140f;
+    --ink: #ece7d6;
+    --muted: #8a8677;
+    --hairline: #2a2a20;
+    --accent: #b8874a;
+    --live: #7a9463;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    overscroll-behavior: none;
+  }
+
+  body {
+    color: var(--ink);
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Courier New", monospace;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  header {
+    padding: 1.25rem 1.25rem 0.5rem;
+  }
+
+  .wordmark {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .tagline {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 1.25rem 1.5rem;
+    gap: 1rem;
+    min-height: 0;
+  }
+
+  #device-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 1rem 1.1rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #device-status:active {
+    border-color: var(--accent);
+  }
+
+  #device-status .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  #device-status.connected .dot {
+    background: var(--live);
+  }
+
+  #device-status .label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #device-status .rescan {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  #device-picker {
+    display: none;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  #device-picker.visible {
+    display: flex;
+  }
+
+  #device-picker button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+    text-align: left;
+  }
+
+  #device-picker button:active {
+    border-color: var(--accent);
+  }
+
+  #note-feed {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .feed-empty {
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 1rem 0.25rem;
+  }
+
+  .feed-row {
+    display: grid;
+    grid-template-columns: 3.5rem 1fr 4rem;
+    gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.55rem 0.75rem;
+    background: var(--panel);
+    border-left: 2px solid var(--hairline);
+    border-radius: 2px;
+    font-size: 0.9rem;
+  }
+
+  .feed-row.note-on {
+    border-left-color: var(--live);
+  }
+
+  .feed-row.cc {
+    border-left-color: var(--accent);
+  }
+
+  .feed-row .ch {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .feed-row .vel {
+    text-align: right;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Pentawald</div>
+  <div class="tagline">field recorder</div>
+</header>
+
+<main>
+  <div id="device-status" class="disconnected">
+    <span class="dot"></span>
+    <span class="label" id="device-label">Requesting MIDI access&hellip;</span>
+    <span class="rescan">tap to rescan</span>
+  </div>
+
+  <div id="device-picker"></div>
+
+  <div id="note-feed">
+    <div class="feed-empty">Waiting for notes&hellip;</div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var statusEl = document.getElementById('device-status');
+  var labelEl = document.getElementById('device-label');
+  var pickerEl = document.getElementById('device-picker');
+  var feedEl = document.getElementById('note-feed');
+
+  var midiAccess = null;
+  var selectedInput = null;
+  var feedEntries = [];
+  var FEED_LIMIT = 20;
+
+  var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+  function noteName(n) {
+    return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
+  }
+
+  function setStatus(text, connected) {
+    labelEl.textContent = text;
+    statusEl.classList.toggle('connected', !!connected);
+  }
+
+  function renderPicker(inputs) {
+    pickerEl.innerHTML = '';
+    if (inputs.length < 2) {
+      pickerEl.classList.remove('visible');
+      return;
+    }
+    inputs.forEach(function (input) {
+      var btn = document.createElement('button');
+      btn.textContent = input.name || 'Unnamed MIDI device';
+      btn.addEventListener('click', function () {
+        selectInput(input);
+      });
+      pickerEl.appendChild(btn);
+    });
+    pickerEl.classList.add('visible');
+  }
+
+  function detachInput() {
+    if (selectedInput) {
+      selectedInput.onmidimessage = null;
+      selectedInput = null;
+    }
+  }
+
+  function selectInput(input) {
+    detachInput();
+    selectedInput = input;
+    input.onmidimessage = onMIDIMessage;
+    setStatus(input.name || 'MIDI device', true);
+    pickerEl.classList.remove('visible');
+  }
+
+  function refreshDevices() {
+    if (!midiAccess) return;
+    var inputs = Array.from(midiAccess.inputs.values()).filter(function (input) {
+      return input.state === 'connected';
+    });
+
+    if (inputs.length === 0) {
+      detachInput();
+      setStatus('No MIDI device', false);
+      pickerEl.classList.remove('visible');
+      return;
+    }
+
+    // Keep the current selection if it is still present.
+    if (selectedInput && inputs.indexOf(selectedInput) !== -1) {
+      setStatus(selectedInput.name || 'MIDI device', true);
+      pickerEl.classList.remove('visible');
+      return;
+    }
+
+    if (inputs.length === 1) {
+      selectInput(inputs[0]);
+      return;
+    }
+
+    detachInput();
+    setStatus('Multiple devices — choose one', false);
+    renderPicker(inputs);
+  }
+
+  function onMIDIMessage(event) {
+    var data = event.data;
+    var command = data[0] >> 4;
+    var channel = (data[0] & 0x0f) + 1;
+
+    if (command === 0x9 || command === 0x8) {
+      var note = data[1];
+      var velocity = data[2] || 0;
+      var isOn = command === 0x9 && velocity > 0;
+      addFeedEntry({
+        type: isOn ? 'note-on' : 'note-off',
+        channel: channel,
+        text: noteName(note),
+        detail: 'vel ' + velocity
+      });
+    } else if (command === 0xb) {
+      var controller = data[1];
+      var value = data[2];
+      addFeedEntry({
+        type: 'cc',
+        channel: channel,
+        text: 'CC ' + controller,
+        detail: String(value)
+      });
+    }
+  }
+
+  function addFeedEntry(entry) {
+    feedEntries.unshift(entry);
+    if (feedEntries.length > FEED_LIMIT) {
+      feedEntries.length = FEED_LIMIT;
+    }
+    renderFeed();
+  }
+
+  function renderFeed() {
+    if (feedEntries.length === 0) {
+      feedEl.innerHTML = '<div class="feed-empty">Waiting for notes&hellip;</div>';
+      return;
+    }
+    feedEl.innerHTML = feedEntries.map(function (e) {
+      return '<div class="feed-row ' + (e.type === 'cc' ? 'cc' : e.type) + '">' +
+        '<span class="ch">CH' + e.channel + '</span>' +
+        '<span class="note">' + e.text + '</span>' +
+        '<span class="vel">' + e.detail + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function initMIDI() {
+    if (!navigator.requestMIDIAccess) {
+      setStatus('Web MIDI not supported in this browser', false);
+      return;
+    }
+    setStatus('Requesting MIDI access…', false);
+    navigator.requestMIDIAccess({ sysex: false }).then(function (access) {
+      midiAccess = access;
+      midiAccess.onstatechange = refreshDevices;
+      refreshDevices();
+    }).catch(function () {
+      setStatus('MIDI access denied — tap to retry', false);
+    });
+  }
+
+  statusEl.addEventListener('click', function () {
+    if (!midiAccess) {
+      initMIDI();
+    } else {
+      refreshDevices();
+    }
+  });
+
+  initMIDI();
+})();
+</script>
+
+</body>
+</html>
