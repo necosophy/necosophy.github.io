@@ -5,16 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Pentawald — field recorder</title>
 <meta name="description" content="Offline MIDI field recorder for biofeedback devices.">
-<meta name="theme-color" content="#0a0a08">
+<meta name="theme-color" content="#0a0908">
 <style>
+  @font-face {
+    font-family: 'Julius Sans One';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/JuliusSansOne-Regular.woff2') format('woff2');
+  }
+
   :root {
-    --bg: #0a0a08;
-    --panel: #14140f;
-    --ink: #ece7d6;
-    --muted: #8a8677;
-    --hairline: #2a2a20;
-    --accent: #b8874a;
-    --live: #7a9463;
+    --bg: #0a0908;
+    --panel: transparent;
+    --ink: #d8dad7;
+    --silver: #c9ccc9;
+    --muted: rgba(201, 204, 201, 0.5);
+    --hairline: rgba(201, 204, 201, 0.14);
+    --copper: #c47a3d;
+    --copper-dim: rgba(196, 122, 61, 0.4);
+    --sage: #8a9a86;
+    --sage-dim: rgba(138, 154, 134, 0.4);
     --rec: #c1503f;
   }
 
@@ -29,6 +40,7 @@
   body {
     color: var(--ink);
     font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Courier New", monospace;
+    font-weight: 300;
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -36,58 +48,87 @@
 
   header {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.55rem;
-    padding: 1.25rem 1.25rem 0.5rem;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 1.75rem 1.25rem 1rem;
   }
 
   #pentawald-mark {
-    width: 1rem;
-    height: 1rem;
+    width: 2.6rem;
+    height: 2.6rem;
     flex-shrink: 0;
   }
 
   .mark-outline {
     fill: none;
-    stroke: var(--live);
-    stroke-width: 3;
-    opacity: 0.3;
+    stroke: var(--copper);
+    stroke-width: 1.4;
+    opacity: 0.32;
+    animation: copper-drift 8.5s ease-in-out infinite;
   }
 
   .mark-dot {
-    fill: var(--live);
-    opacity: 0.35;
+    fill: var(--copper);
+    opacity: 0.4;
     transition: opacity 0.4s ease;
+    animation: copper-drift 7s ease-in-out infinite;
   }
 
+  .mark-dot:nth-of-type(2) { animation-duration: 9.2s; animation-delay: -1.4s; }
+  .mark-dot:nth-of-type(3) { animation-duration: 6.6s; animation-delay: -3.1s; }
+  .mark-dot:nth-of-type(4) { animation-duration: 8.1s; animation-delay: -5.2s; }
+  .mark-dot:nth-of-type(5) { animation-duration: 7.6s; animation-delay: -2.3s; }
+  .mark-dot:nth-of-type(6) { animation-duration: 9.8s; animation-delay: -0.6s; }
+
   .mark-dot.active {
+    animation: none;
     opacity: 1;
+  }
+
+  @keyframes copper-drift {
+    0%   { opacity: 0.22; }
+    17%  { opacity: 0.42; }
+    38%  { opacity: 0.18; }
+    55%  { opacity: 0.46; }
+    79%  { opacity: 0.26; }
+    100% { opacity: 0.22; }
   }
 
   #header-text {
     display: flex;
     flex-direction: column;
+    align-items: center;
   }
 
   .wordmark {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 0.13em;
+    font-family: 'Julius Sans One', ui-monospace, "SFMono-Regular", monospace;
+    font-size: 1.5rem;
+    font-weight: 400;
+    letter-spacing: 0.34em;
     text-transform: uppercase;
+    color: var(--copper);
+    /* the wide tracking pushes the glyphs right of center in most
+       browsers' box measurement; nudge back so it looks centered */
+    margin-right: -0.34em;
   }
 
   .tagline {
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-top: 0.02rem;
+    font-size: 0.62rem;
+    font-weight: 300;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-top: 0.35rem;
   }
 
   main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 0.75rem 1.25rem 1.5rem;
-    gap: 1rem;
+    padding: 0.85rem 1.25rem 1.6rem;
+    gap: 1.3rem;
     min-height: 0;
   }
 
@@ -107,7 +148,7 @@
   }
 
   #device-status:active {
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   #device-status .dot {
@@ -119,7 +160,7 @@
   }
 
   #device-status.connected .dot {
-    background: var(--live);
+    background: var(--silver);
   }
 
   #device-status .label {
@@ -150,6 +191,7 @@
   #device-picker button {
     font-family: inherit;
     font-size: 0.9rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
     border: 1px solid var(--hairline);
@@ -159,7 +201,7 @@
   }
 
   #device-picker button:active {
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   #visualizer-canvas {
@@ -179,7 +221,7 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.5rem;
     min-height: 7.5rem;
     -webkit-overflow-scrolling: touch;
   }
@@ -195,27 +237,28 @@
     grid-template-columns: 3.5rem 1fr 4rem;
     gap: 0.5rem;
     align-items: baseline;
-    padding: 0.55rem 0.75rem;
+    padding: 0.65rem 0.85rem;
     background: var(--panel);
     border-left: 2px solid var(--hairline);
     border-radius: 2px;
     font-size: 0.9rem;
+    font-weight: 300;
   }
 
   .feed-row.note-on {
-    border-left-color: var(--live);
+    border-left-color: var(--copper);
   }
 
   .feed-row.cc {
-    border-left-color: var(--accent);
+    border-left-color: var(--silver);
   }
 
   .feed-row.marker {
-    border-left-color: var(--accent);
+    border-left-color: var(--sage);
   }
 
   .feed-row.marker .note {
-    color: var(--accent);
+    color: var(--sage);
   }
 
   .feed-row .ch {
@@ -234,7 +277,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.75rem;
     padding-top: 0.25rem;
   }
 
@@ -253,18 +296,14 @@
     width: 100%;
     font-family: inherit;
     font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    font-weight: 500;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--rec);
+    color: var(--sage);
     background: var(--panel);
-    border: 1px solid var(--rec);
+    border: 1px solid var(--sage);
     border-radius: 6px;
-    padding: 1.15rem 1rem;
-  }
-
-  #record-btn:active {
-    border-color: var(--rec);
+    padding: 1.25rem 1rem;
   }
 
   #record-btn.recording {
@@ -294,15 +333,16 @@
     flex: 1 1 auto;
     font-family: inherit;
     font-size: 0.85rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--sage-dim);
     border-radius: 4px;
-    padding: 0.7rem 1rem;
+    padding: 0.8rem 1rem;
   }
 
   .marker-btn:active {
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   #marker-custom-panel {
@@ -319,6 +359,7 @@
     flex: 1;
     font-family: inherit;
     font-size: 0.95rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
     border: 1px solid var(--hairline);
@@ -328,16 +369,16 @@
 
   #marker-custom-input:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   #marker-custom-confirm {
     font-family: inherit;
     font-size: 0.85rem;
-    font-weight: 700;
-    color: #170a08;
-    background: var(--accent);
-    border: 1px solid var(--accent);
+    font-weight: 500;
+    color: var(--sage);
+    background: var(--panel);
+    border: 1px solid var(--sage);
     border-radius: 4px;
     padding: 0.7rem 1.1rem;
   }
@@ -346,8 +387,8 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    padding-top: 0.5rem;
+    gap: 0.75rem;
+    padding-top: 0.6rem;
     border-top: 1px solid var(--hairline);
   }
 
@@ -370,20 +411,21 @@
     flex: 1 1 auto;
     font-family: inherit;
     font-size: 0.85rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--sage-dim);
     border-radius: 4px;
-    padding: 0.65rem 1rem;
+    padding: 0.75rem 1rem;
   }
 
   .synth-preset-btn:active {
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   .synth-preset-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--sage);
+    color: var(--sage);
   }
 
   .synth-control {
@@ -403,13 +445,14 @@
 
   .synth-control input[type="range"] {
     flex: 1;
-    accent-color: var(--accent);
+    accent-color: var(--sage);
   }
 
   #synth-waveform {
     flex: 1;
     font-family: inherit;
     font-size: 0.9rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
     border: 1px solid var(--hairline);
@@ -420,28 +463,28 @@
   #synth-mute-btn {
     font-family: inherit;
     font-size: 0.9rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
+    font-weight: 500;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--accent);
+    color: var(--sage);
     background: var(--panel);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--sage);
     border-radius: 4px;
-    padding: 0.85rem 1rem;
+    padding: 0.9rem 1rem;
   }
 
   #synth-mute-btn.muted {
-    background: var(--rec);
+    background: var(--panel);
     border-color: var(--rec);
-    color: #170a08;
+    color: var(--rec);
   }
 
   #export-panel {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    padding-top: 0.5rem;
+    gap: 0.75rem;
+    padding-top: 0.6rem;
     border-top: 1px solid var(--hairline);
     margin-top: 0.25rem;
   }
@@ -460,6 +503,7 @@
   #filename-input {
     font-family: inherit;
     font-size: 1rem;
+    font-weight: 300;
     color: var(--ink);
     background: var(--panel);
     border: 1px solid var(--hairline);
@@ -469,42 +513,43 @@
 
   #filename-input:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--sage);
   }
 
   .export-actions {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.75rem;
   }
 
   #export-btn {
     flex: 1;
     font-family: inherit;
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #170a08;
-    background: var(--accent);
-    border: 1px solid var(--accent);
+    letter-spacing: 0.06em;
+    color: var(--sage);
+    background: var(--panel);
+    border: 1px solid var(--sage);
     border-radius: 4px;
-    padding: 0.9rem 1rem;
+    padding: 0.95rem 1rem;
   }
 
   #discard-btn {
     font-family: inherit;
     font-size: 0.8rem;
+    font-weight: 300;
     color: var(--muted);
-    background: transparent;
+    background: var(--panel);
     border: 1px solid var(--hairline);
     border-radius: 4px;
-    padding: 0.9rem 1rem;
+    padding: 0.95rem 1rem;
   }
 
   #export-status {
     min-height: 1.2em;
     font-size: 0.8rem;
-    color: var(--live);
+    color: var(--sage);
   }
 
   #export-status.error {
@@ -531,7 +576,7 @@
   </svg>
   <div id="header-text">
     <div class="wordmark">Pentawald</div>
-    <div class="tagline">field recorder</div>
+    <div class="tagline">Nature &times; Machine &times; Human</div>
   </div>
 </header>
 
