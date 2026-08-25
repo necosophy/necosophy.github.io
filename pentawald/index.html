@@ -307,6 +307,26 @@
     font-size: 0.75rem;
     color: var(--muted);
   }
+
+  #share-diagnostic {
+    display: none;
+    font-family: inherit;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.65rem 0.75rem;
+    max-height: 9rem;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  #share-diagnostic.visible {
+    display: block;
+  }
 </style>
 </head>
 <body>
@@ -345,6 +365,7 @@
       <button id="discard-btn">Discard</button>
     </div>
     <div id="export-status" aria-live="polite"></div>
+    <pre id="share-diagnostic"></pre>
   </div>
 </main>
 
@@ -365,6 +386,7 @@
   var discardBtn = document.getElementById('discard-btn');
   var exportStatusEl = document.getElementById('export-status');
   var bufferInfoEl = document.getElementById('buffer-info');
+  var shareDiagnosticEl = document.getElementById('share-diagnostic');
 
   var midiAccess = null;
   var selectedInput = null;
@@ -613,6 +635,8 @@
   function showExportPanel() {
     filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
     showExportStatus('');
+    shareDiagnosticEl.textContent = '';
+    shareDiagnosticEl.classList.remove('visible');
 
     var summary = summarizeEvents(recordedEvents);
     bufferInfoEl.textContent = summary.total + ' events buffered — ' +
@@ -662,6 +686,8 @@
     exportPanel.hidden = true;
     showExportStatus('');
     bufferInfoEl.textContent = '';
+    shareDiagnosticEl.textContent = '';
+    shareDiagnosticEl.classList.remove('visible');
     updateReadout();
   });
 
@@ -801,43 +827,99 @@
     showExportStatus('Downloaded ' + filename);
   }
 
-  // Android/Chrome can reject a share for a MIME type it doesn't recognize
-  // as shareable even after canShare() said yes. Try audio/midi first, then
-  // fall back to the generic binary type, before giving up on sharing.
-  var SHARE_MIME_CANDIDATES = ['audio/midi', 'application/octet-stream'];
+  var shareLog = [];
 
-  function attemptShare(blob, filename, mimeIndex) {
-    if (mimeIndex >= SHARE_MIME_CANDIDATES.length) {
-      downloadBlob(blob, filename);
+  function logShare(line) {
+    shareLog.push(line);
+    shareDiagnosticEl.textContent = shareLog.join('\n');
+    shareDiagnosticEl.classList.add('visible');
+    shareDiagnosticEl.scrollTop = shareDiagnosticEl.scrollHeight;
+    console.log('Pentawald share: ' + line);
+  }
+
+  function describeError(err) {
+    if (!err) return 'unknown error';
+    var name = err.name || 'Error';
+    var message = err.message || String(err);
+    return name + ': ' + message;
+  }
+
+  // Android/Chrome can restrict shareable files by MIME type and by file
+  // extension, independently, and canShare() saying yes doesn't guarantee
+  // share() will actually surface the sheet. Work through a list of
+  // MIME/extension combinations from most to least "correct", ending with
+  // renaming the file to .txt — wrong extension, but better than no share
+  // sheet at all.
+  function buildShareCandidates(filename) {
+    var stem = filename.replace(/\.mid$/i, '');
+    return [
+      { filename: filename, mimeType: 'audio/midi' },
+      { filename: filename, mimeType: 'application/octet-stream' },
+      { filename: filename, mimeType: 'audio/mid' },
+      { filename: filename, mimeType: 'text/plain' },
+      { filename: filename, mimeType: '' },
+      { filename: stem + '.txt', mimeType: 'text/plain' }
+    ];
+  }
+
+  function candidateLabel(candidate) {
+    return (candidate.mimeType || '(no MIME type)') + ' as "' + candidate.filename + '"';
+  }
+
+  function attemptShare(blob, originalFilename, candidates, index) {
+    if (index >= candidates.length) {
+      logShare('All share attempts exhausted — falling back to download.');
+      downloadBlob(blob, originalFilename);
       return;
     }
-    var mimeType = SHARE_MIME_CANDIDATES[mimeIndex];
+
+    var candidate = candidates[index];
+    var label = candidateLabel(candidate);
     var file;
+
     try {
-      file = new File([blob], filename, { type: mimeType });
-      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
-        attemptShare(blob, filename, mimeIndex + 1);
+      file = new File([blob], candidate.filename, { type: candidate.mimeType });
+    } catch (err) {
+      logShare(label + ' — File() threw: ' + describeError(err));
+      attemptShare(blob, originalFilename, candidates, index + 1);
+      return;
+    }
+
+    if (navigator.canShare) {
+      var canShareResult;
+      try {
+        canShareResult = navigator.canShare({ files: [file] });
+      } catch (err) {
+        logShare(label + ' — canShare() threw: ' + describeError(err));
+        attemptShare(blob, originalFilename, candidates, index + 1);
         return;
       }
-    } catch (err) {
-      attemptShare(blob, filename, mimeIndex + 1);
-      return;
+      if (!canShareResult) {
+        logShare(label + ' — canShare() = false');
+        attemptShare(blob, originalFilename, candidates, index + 1);
+        return;
+      }
+      logShare(label + ' — canShare() = true, calling share()…');
+    } else {
+      logShare(label + ' — navigator.canShare unavailable, calling share() anyway…');
     }
 
     try {
-      Promise.resolve(navigator.share({ files: [file], title: filename })).then(function () {
-        showExportStatus('Shared ' + filename);
+      Promise.resolve(navigator.share({ files: [file], title: candidate.filename })).then(function () {
+        logShare(label + ' — share() succeeded');
+        showExportStatus('Shared ' + candidate.filename);
       }).catch(function (err) {
         if (err && err.name === 'AbortError') {
+          logShare(label + ' — share() cancelled by user');
           showExportStatus('Share cancelled');
           return;
         }
-        console.warn('share failed as ' + mimeType + ', trying next option', err);
-        attemptShare(blob, filename, mimeIndex + 1);
+        logShare(label + ' — share() rejected: ' + describeError(err));
+        attemptShare(blob, originalFilename, candidates, index + 1);
       });
     } catch (err) {
-      console.warn('share threw as ' + mimeType + ', trying next option', err);
-      attemptShare(blob, filename, mimeIndex + 1);
+      logShare(label + ' — share() threw: ' + describeError(err));
+      attemptShare(blob, originalFilename, candidates, index + 1);
     }
   }
 
@@ -847,12 +929,18 @@
     var blob = new Blob([bytes], { type: 'audio/midi' });
 
     showExportStatus('Exporting…');
+    shareLog = [];
+    shareDiagnosticEl.textContent = '';
+    shareDiagnosticEl.classList.remove('visible');
 
+    logShare('navigator.share ' + (navigator.share ? 'is available' : 'is NOT available'));
     if (!navigator.share) {
       downloadBlob(blob, filename);
       return;
     }
-    attemptShare(blob, filename, 0);
+    logShare('navigator.canShare ' + (navigator.canShare ? 'is available' : 'is NOT available'));
+
+    attemptShare(blob, filename, buildShareCandidates(filename), 0);
   });
 
   initMIDI();
