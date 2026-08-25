@@ -135,7 +135,7 @@
     flex-shrink: 0;
     display: block;
     width: 100%;
-    height: 26vh;
+    height: 13vh;
     border-radius: 4px;
   }
 
@@ -145,7 +145,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    min-height: 0;
+    min-height: 7.5rem;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -221,9 +221,9 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--ink);
+    color: var(--rec);
     background: var(--panel);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--rec);
     border-radius: 6px;
     padding: 1.15rem 1rem;
   }
@@ -388,9 +388,9 @@
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--ink);
+    color: var(--accent);
     background: var(--panel);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--accent);
     border-radius: 4px;
     padding: 0.85rem 1rem;
   }
@@ -578,9 +578,17 @@ window.Visualizer = (function () {
     return Math.max(lo, Math.min(hi, v));
   }
 
+  // Re-checked every frame rather than only on window "resize" — mobile
+  // viewport height (the canvas is sized in vh) can settle after this
+  // module's first layout read (address bar collapsing, late reflow),
+  // and a stale backing-store size is exactly what makes drawing land
+  // in the wrong part of the box and look stretched/blurry. The early
+  // return keeps this cheap: the expensive part (resizing the backing
+  // store) only runs when the size actually changed.
   function resize() {
     if (!canvas) return;
     var rect = canvas.getBoundingClientRect();
+    if (rect.width === width && rect.height === height && canvas.width > 0) return;
     var dpr = window.devicePixelRatio || 1;
     width = rect.width;
     height = rect.height;
@@ -589,7 +597,32 @@ window.Visualizer = (function () {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  // Pitch drives horizontal position, velocity drives size/speed/warmth.
+  // Five color families cycled across the chromatic scale (pitch class,
+  // note % 12) rather than a plain low-to-high gradient, so a run of
+  // notes reads as genuinely varied color rather than one hue sliding
+  // up and down.
+  var COLOR_STOPS = [
+    [150, 110, 190], // purplish
+    [150, 115, 75],  // earth
+    [184, 135, 74],  // copper
+    [95, 140, 190],  // blueish
+    [205, 120, 150]  // pink
+  ];
+
+  function pitchColor(note) {
+    var pos = ((note % 12) + 12) % 12 / 12 * COLOR_STOPS.length;
+    var i0 = Math.floor(pos) % COLOR_STOPS.length;
+    var i1 = (i0 + 1) % COLOR_STOPS.length;
+    var t = pos - Math.floor(pos);
+    var a = COLOR_STOPS[i0], b = COLOR_STOPS[i1];
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * t),
+      Math.round(a[1] + (b[1] - a[1]) * t),
+      Math.round(a[2] + (b[2] - a[2]) * t)
+    ];
+  }
+
+  // Pitch drives color (see pitchColor), velocity drives size and speed.
   function trigger(note, velocity) {
     if (!ctx) return;
     if (particles.length >= MAX_PARTICLES) particles.shift();
@@ -600,27 +633,18 @@ window.Visualizer = (function () {
     particles.push({
       x: pitchFrac * width,
       y: height * 0.5 + (Math.random() - 0.5) * height * 0.2,
-      vx: (Math.random() - 0.5) * 10,
-      vy: -30 - velFrac * 50,
-      r: 2 + velFrac * 6,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -15 - velFrac * 25,
+      r: 1 + velFrac * 2.5,
       life: 1,
       decay: 0.014 + Math.random() * 0.008,
-      warmth: velFrac
+      color: pitchColor(note)
     });
-  }
-
-  // Interpolates between the site's two accent colors — moss (low
-  // velocity) and copper (high velocity) — rather than introducing new
-  // hues per channel.
-  function particleColor(warmth, alpha) {
-    var r = Math.round(122 + (184 - 122) * warmth);
-    var g = Math.round(148 + (135 - 148) * warmth);
-    var b = Math.round(99 + (74 - 99) * warmth);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed(3) + ')';
   }
 
   function step() {
     if (!running) return;
+    resize();
 
     ctx.fillStyle = 'rgba(10, 10, 8, 0.22)';
     ctx.fillRect(0, 0, width, height);
@@ -629,16 +653,28 @@ window.Visualizer = (function () {
       var p = particles[i];
       p.x += p.vx * 0.02;
       p.y += p.vy * 0.02;
-      p.vy += 0.6;
+      p.vy += 0.35;
       p.life -= p.decay;
       if (p.life <= 0) {
         particles.splice(i, 1);
         continue;
       }
       var alpha = Math.max(0, p.life);
+      var c = p.color;
+      var r = p.r * alpha;
+
+      // A soft body plus a brighter core reads as more "detailed" than
+      // a single flat disc, for two extra fill calls.
       ctx.beginPath();
-      ctx.fillStyle = particleColor(p.warmth, alpha);
-      ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (alpha * 0.55).toFixed(3) + ')';
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(' +
+        Math.min(255, c[0] + 60) + ',' + Math.min(255, c[1] + 60) + ',' + Math.min(255, c[2] + 60) +
+        ',' + alpha.toFixed(3) + ')';
+      ctx.arc(p.x, p.y, r * 0.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -650,6 +686,7 @@ window.Visualizer = (function () {
     ctx = canvas.getContext('2d');
     resize();
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
     if (!running) {
       running = true;
       requestAnimationFrame(step);
