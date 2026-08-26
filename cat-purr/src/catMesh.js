@@ -13,7 +13,7 @@ const BONE_RADIUS = {
   pawFL: 0.075, pawFR: 0.075, pawBL: 0.075, pawBR: 0.075,
 };
 
-// Ears are modeled as standalone cones rather than tubes into the head.
+// Ears are modeled as standalone shapes rather than tubes into the head.
 const TUBE_LINKS = BONE_LINKS.filter(([a, b]) => !a.startsWith('ear') && !b.startsWith('ear'));
 
 const RING_COUNT = 6;
@@ -27,17 +27,19 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-// A quad-grid tube between two bone anchors, rendered as line segments.
-// Topology (which vertex indices form which lines) is fixed at construction;
-// only vertex positions are rewritten each frame, so posing is cheap.
+// A quad-grid tube between two bone anchors, rendered as line segments plus
+// a faint translucent fill sharing the same (live-updated) position buffer.
+// Topology is fixed at construction; only vertex positions are rewritten
+// each frame, so posing is cheap.
 class TubeSegment {
-  constructor(boneA, boneB, radiusA, radiusB) {
+  constructor(boneA, boneB, radiusA, radiusB, lineMaterial, fillMaterial) {
     this.boneA = boneA;
     this.boneB = boneB;
     this.radiusA = radiusA;
     this.radiusB = radiusB;
 
     this.positions = new Float32Array(RING_COUNT * RADIAL_SEGMENTS * 3);
+    const positionAttr = new THREE.BufferAttribute(this.positions, 3);
 
     const lineIndices = [];
     for (let r = 0; r < RING_COUNT; r++) {
@@ -54,10 +56,24 @@ class TubeSegment {
     }
 
     this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute('position', positionAttr);
     this.geometry.setIndex(lineIndices);
+    this.lines = new THREE.LineSegments(this.geometry, lineMaterial);
 
-    this.lines = new THREE.LineSegments(this.geometry);
+    const fillIndices = [];
+    for (let r = 0; r < RING_COUNT - 1; r++) {
+      for (let k = 0; k < RADIAL_SEGMENTS; k++) {
+        const a = r * RADIAL_SEGMENTS + k;
+        const b = r * RADIAL_SEGMENTS + ((k + 1) % RADIAL_SEGMENTS);
+        const c = (r + 1) * RADIAL_SEGMENTS + ((k + 1) % RADIAL_SEGMENTS);
+        const d = (r + 1) * RADIAL_SEGMENTS + k;
+        fillIndices.push(a, b, c, a, c, d);
+      }
+    }
+    this.fillGeometry = new THREE.BufferGeometry();
+    this.fillGeometry.setAttribute('position', positionAttr); // shared, same live buffer
+    this.fillGeometry.setIndex(fillIndices);
+    this.fillMesh = new THREE.Mesh(this.fillGeometry, fillMaterial);
   }
 
   update(posA, posB, shimmerAmount, shimmerSeed, radiusScaleA, radiusScaleB) {
@@ -101,6 +117,27 @@ class TubeSegment {
   }
 }
 
+// Rounds out the top (forehead/cheeks) and tapers the bottom (jaw/chin) of a
+// sphere so it reads as a head silhouette rather than a plain ball, while
+// keeping the clean lat/long wireframe grid the reference art uses.
+function makeHeadGeometry(radius) {
+  const geo = new THREE.SphereGeometry(radius, 14, 10);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    if (y < 0) {
+      const taper = 1 + (y / radius) * 0.4;
+      pos.setX(i, x * taper);
+      pos.setZ(i, z * taper);
+    }
+  }
+  pos.needsUpdate = true;
+  geo.scale(1, 0.95, 1.2);
+  return geo;
+}
+
 export class Cat {
   constructor(scene) {
     this.group = new THREE.Group();
@@ -130,11 +167,24 @@ export class Cat {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    this.fillMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#2a6a78'),
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.whiskerMaterial = new THREE.LineBasicMaterial({
+      color: new THREE.Color('#bff4ff'),
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
 
     this._buildTubes();
     this._buildHead();
     this._buildEars();
-    this._buildEyes();
 
     this.breathPhase = Math.random() * Math.PI * 2;
     this.tailPhase = Math.random() * Math.PI * 2;
@@ -148,9 +198,9 @@ export class Cat {
 
   _buildTubes() {
     this.tubes = TUBE_LINKS.map(([a, b]) => {
-      const seg = new TubeSegment(a, b, BONE_RADIUS[a], BONE_RADIUS[b]);
-      seg.lines.material = this.lineMaterial;
+      const seg = new TubeSegment(a, b, BONE_RADIUS[a], BONE_RADIUS[b], this.lineMaterial, this.fillMaterial);
       this.group.add(seg.lines);
+      this.group.add(seg.fillMesh);
       return seg;
     });
   }
@@ -161,56 +211,108 @@ export class Cat {
   }
 
   _buildHead() {
-    const headGeo = new THREE.IcosahedronGeometry(BONE_RADIUS.head, 1);
-    headGeo.scale(1, 0.92, 1.15);
-    this.headMesh = this._wireframeMesh(headGeo);
-    this.group.add(this.headMesh);
+    // headPivot carries everything rigidly attached to the skull (the head
+    // shell, nose, eyes, whiskers) — position/orientation set once per frame,
+    // children ride along via normal scene-graph parenting.
+    this.headPivot = new THREE.Group();
+    this.group.add(this.headPivot);
 
-    const noseGeo = new THREE.IcosahedronGeometry(BONE_RADIUS.muzzle * 0.6, 0);
-    this.noseMesh = this._wireframeMesh(noseGeo);
+    const headGeo = makeHeadGeometry(BONE_RADIUS.head);
+    this.headPivot.add(this._wireframeMesh(headGeo));
+    this.headPivot.add(new THREE.Mesh(headGeo, this.fillMaterial));
+
+    const noseGeo = new THREE.IcosahedronGeometry(BONE_RADIUS.muzzle * 0.6, 1);
+    this.noseMesh = new THREE.Group();
+    this.noseMesh.add(this._wireframeMesh(noseGeo));
+    this.noseMesh.add(new THREE.Mesh(noseGeo, this.fillMaterial));
     this.group.add(this.noseMesh);
-  }
 
-  _buildEars() {
-    this.ears = {};
-    for (const side of ['earL', 'earR']) {
-      const earGeo = new THREE.ConeGeometry(BONE_RADIUS[side] * 1.5, 0.35, 4);
-      earGeo.translate(0, 0.175, 0); // base at local origin, tip toward +Y
-      const mesh = this._wireframeMesh(earGeo);
-      this.group.add(mesh);
-      this.ears[side] = mesh;
-    }
+    this._buildEyes();
+    this._buildWhiskers();
   }
 
   _buildEyes() {
-    const size = 32;
+    const ringMaterial = new THREE.LineBasicMaterial({
+      color: new THREE.Color('#eaffff'),
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const size = 24;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d');
     const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
     grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.4, 'rgba(200,245,255,0.9)');
-    grad.addColorStop(1, 'rgba(160,230,255,0)');
+    grad.addColorStop(0.5, 'rgba(210,250,255,0.9)');
+    grad.addColorStop(1, 'rgba(170,235,255,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
-    const tex = new THREE.CanvasTexture(canvas);
-
-    const positions = new Float32Array([
-      -0.095, 0.02, 0.19,
-      0.095, 0.02, 0.19,
-    ]);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.1,
-      map: tex,
+    const pupilTex = new THREE.CanvasTexture(canvas);
+    const pupilMaterial = new THREE.PointsMaterial({
+      size: 0.07,
+      map: pupilTex,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      color: new THREE.Color('#eaffff'),
+      color: new THREE.Color('#ffffff'),
     });
-    this.eyePoints = new THREE.Points(geo, mat);
-    this.group.add(this.eyePoints);
+
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Group();
+
+      const ringGeo = new THREE.RingGeometry(0.032, 0.05, 14);
+      const ring = new THREE.LineSegments(new THREE.WireframeGeometry(ringGeo), ringMaterial);
+      eye.add(ring);
+
+      const pupilGeo = new THREE.BufferGeometry();
+      pupilGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+      eye.add(new THREE.Points(pupilGeo, pupilMaterial));
+
+      eye.position.set(side * 0.095, 0.015, 0.195);
+      this.headPivot.add(eye);
+    }
+  }
+
+  _buildWhiskers() {
+    const positions = [];
+    for (const side of [-1, 1]) {
+      const pad = [side * 0.09, 0.0, 0.19];
+      const spread = [
+        [side * 0.44, 0.07, 0.28],
+        [side * 0.47, -0.01, 0.32],
+        [side * 0.42, -0.08, 0.25],
+      ];
+      for (const [ex, ey, ez] of spread) {
+        positions.push(pad[0], pad[1], pad[2], ex, ey, ez);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    this.headPivot.add(new THREE.LineSegments(geo, this.whiskerMaterial));
+  }
+
+  _buildEars() {
+    this.ears = {};
+    for (const side of ['earL', 'earR']) {
+      const group = new THREE.Group();
+
+      const outerGeo = new THREE.ConeGeometry(BONE_RADIUS[side] * 1.7, 0.38, 3);
+      outerGeo.translate(0, 0.19, 0);
+      outerGeo.scale(1, 1, 0.32);
+      group.add(this._wireframeMesh(outerGeo));
+      group.add(new THREE.Mesh(outerGeo, this.fillMaterial));
+
+      const innerGeo = new THREE.ConeGeometry(BONE_RADIUS[side] * 1.7 * 0.5, 0.38 * 0.6, 3);
+      innerGeo.translate(0, 0.19 * 0.6, 0.01);
+      innerGeo.scale(1, 1, 0.32);
+      group.add(this._wireframeMesh(innerGeo));
+
+      this.group.add(group);
+      this.ears[side] = group;
+    }
   }
 
   triggerPose(name, elapsed) {
@@ -291,11 +393,13 @@ export class Cat {
 
     const headPos = this.boneCurrent.head;
     const muzzlePos = this.boneCurrent.muzzle;
-    this.headMesh.position.copy(headPos);
     const lookDir = new THREE.Vector3().subVectors(muzzlePos, headPos).normalize();
-    this.headMesh.quaternion.setFromUnitVectors(FORWARD, lookDir);
+
+    this.headPivot.position.copy(headPos);
+    this.headPivot.quaternion.setFromUnitVectors(FORWARD, lookDir);
 
     this.noseMesh.position.copy(muzzlePos);
+    this.noseMesh.quaternion.copy(this.headPivot.quaternion);
 
     for (const side of ['earL', 'earR']) {
       const earPos = this.boneCurrent[side];
@@ -313,8 +417,5 @@ export class Cat {
         mesh.rotateZ(bend);
       }
     }
-
-    this.eyePoints.position.copy(headPos);
-    this.eyePoints.quaternion.copy(this.headMesh.quaternion);
   }
 }
