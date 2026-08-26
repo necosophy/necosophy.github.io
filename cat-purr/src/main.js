@@ -116,7 +116,7 @@ initMIDI({
 // ---------------------------------------------------------------------------
 let smoothedModWheel = 0;
 const lookAt = new THREE.Vector3(0, 1.0, -0.2);
-const baseAngle = 1.15; // near side-profile, slightly turned toward camera
+const baseAngle = 0; // front-facing, looking the cat in the eye
 
 function animate() {
   requestAnimationFrame(animate);
