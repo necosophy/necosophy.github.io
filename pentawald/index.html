@@ -48,16 +48,16 @@
 
   header {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    text-align: center;
-    gap: 0.5rem;
-    padding: 1.75rem 1.25rem 1rem;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1.25rem 0.5rem;
   }
 
   #pentawald-mark {
-    width: 2.6rem;
-    height: 2.6rem;
+    width: 1.4rem;
+    height: 1.4rem;
     flex-shrink: 0;
   }
 
@@ -96,12 +96,6 @@
     100% { opacity: 0.22; }
   }
 
-  #header-text {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
   .wordmark {
     font-family: 'Julius Sans One', ui-monospace, "SFMono-Regular", monospace;
     font-size: 1.5rem;
@@ -109,18 +103,6 @@
     letter-spacing: 0.34em;
     text-transform: uppercase;
     color: var(--copper);
-    /* the wide tracking pushes the glyphs right of center in most
-       browsers' box measurement; nudge back so it looks centered */
-    margin-right: -0.34em;
-  }
-
-  .tagline {
-    font-size: 0.62rem;
-    font-weight: 300;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
-    color: var(--sage);
-    margin-top: 0.35rem;
   }
 
   main {
@@ -299,9 +281,9 @@
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--sage);
+    color: var(--rec);
     background: var(--panel);
-    border: 1px solid var(--sage);
+    border: 1px solid var(--rec);
     border-radius: 6px;
     padding: 1.25rem 1rem;
   }
@@ -466,9 +448,9 @@
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--sage);
+    color: var(--copper);
     background: var(--panel);
-    border: 1px solid var(--sage);
+    border: 1px solid var(--copper);
     border-radius: 4px;
     padding: 0.9rem 1rem;
   }
@@ -566,6 +548,7 @@
 <body>
 
 <header>
+  <div class="wordmark">Pentawald</div>
   <svg id="pentawald-mark" viewBox="0 0 100 100" aria-hidden="true">
     <polygon class="mark-outline" points="50,12 86.14,38.26 72.34,80.74 27.66,80.74 13.86,38.26"></polygon>
     <circle class="mark-dot" data-channel="1" cx="50" cy="12" r="6"></circle>
@@ -574,10 +557,6 @@
     <circle class="mark-dot" data-channel="4" cx="27.66" cy="80.74" r="6"></circle>
     <circle class="mark-dot" data-channel="5" cx="13.86" cy="38.26" r="6"></circle>
   </svg>
-  <div id="header-text">
-    <div class="wordmark">Pentawald</div>
-    <div class="tagline">Nature &times; Machine &times; Human</div>
-  </div>
 </header>
 
 <main>
