@@ -39,7 +39,7 @@ connect a MIDI controller; it's picked up automatically over Web MIDI.
 | D3  | Lie down (loafing) |
 | E3  | Stretch (arched back, auto-returns to idle after a few seconds) |
 | F3  | Idle / sit-up (alert) — default pose |
-| Mod wheel (CC1) | Ambient camera drift + particle shimmer intensity |
+| Mod wheel (CC1) | Manually spin the camera around the cat (full 360°) |
 | Any other note, while a pose is sustained | Bends the purr's pitch/rate, then settles back |
 
 Velocity on a pose-triggering note controls purr loudness/character for

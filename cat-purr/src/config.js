@@ -31,19 +31,22 @@ export const MOD_WHEEL_CC = 1;
 export const POSE_TRANSITION_SECONDS = 1.6; // never a snap-cut
 export const STRETCH_HOLD_SECONDS = 3.2;    // auto-return to idle after this long
 
-// Ambient camera drift, scaled by the mod wheel (CC1): 0 -> driftBase, 127 -> driftMax.
+// Mod wheel (CC1) manually orbits the camera around the cat — 0 rests at
+// orbitBaseAngle (a side/3-quarter view), 127 completes a full spin back
+// around to the same spot. ambientSway is a small always-on wobble so the
+// view is never perfectly static, independent of the mod wheel.
 export const CAMERA = {
-  driftBase: 0.05,
-  driftMax: 0.55,
-  driftSpeed: 0.12,
+  orbitBaseAngle: 1.94,
+  orbitRange: Math.PI * 2,
+  ambientSway: 0.05,
+  swaySpeed: 0.12,
   distance: 4.3,
   height: 1.1,
 };
 
-// Idle particle shimmer/jitter, also scaled by the mod wheel.
+// Idle particle shimmer/jitter — a constant subtle baseline.
 export const SHIMMER = {
   base: 0.012,
-  max: 0.11,
   speed: 3.5,
 };
 
