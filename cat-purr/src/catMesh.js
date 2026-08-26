@@ -117,21 +117,25 @@ class TubeSegment {
   }
 }
 
-// Rounds out the top (forehead/cheeks) and tapers the bottom (jaw/chin) of a
-// sphere so it reads as a head silhouette rather than a plain ball, while
-// keeping the clean lat/long wireframe grid the reference art uses.
+// Rounds out the top (forehead), bulges the cheeks, and tapers the bottom
+// (jaw/chin) of a sphere so it reads as a head silhouette with real cheek
+// volume rather than a plain ball, while keeping the clean lat/long
+// wireframe grid the reference art uses.
 function makeHeadGeometry(radius) {
   const geo = new THREE.SphereGeometry(radius, 14, 10);
   const pos = geo.attributes.position;
+  const cheekY = -0.05 * radius;
+  const cheekSigma = 0.42 * radius;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
-    if (y < 0) {
-      const taper = 1 + (y / radius) * 0.4;
-      pos.setX(i, x * taper);
-      pos.setZ(i, z * taper);
-    }
+    const cheekOffset = (y - cheekY) / cheekSigma;
+    const bulge = 1 + 0.14 * Math.exp(-cheekOffset * cheekOffset);
+    const taper = y < 0 ? 1 + (y / radius) * 0.4 : 1;
+    const scale = bulge * taper;
+    pos.setX(i, x * scale);
+    pos.setZ(i, z * scale);
   }
   pos.needsUpdate = true;
   geo.scale(1, 0.95, 1.2);
@@ -221,14 +225,46 @@ export class Cat {
     this.headPivot.add(this._wireframeMesh(headGeo));
     this.headPivot.add(new THREE.Mesh(headGeo, this.fillMaterial));
 
-    const noseGeo = new THREE.IcosahedronGeometry(BONE_RADIUS.muzzle * 0.6, 1);
+    const noseGeo = new THREE.ConeGeometry(BONE_RADIUS.muzzle * 0.55, BONE_RADIUS.muzzle * 0.7, 4);
+    noseGeo.rotateX(Math.PI / 2); // apex points forward (+Z) instead of up
+    noseGeo.scale(1, 0.7, 1);
     this.noseMesh = new THREE.Group();
     this.noseMesh.add(this._wireframeMesh(noseGeo));
     this.noseMesh.add(new THREE.Mesh(noseGeo, this.fillMaterial));
+    this._buildMouth(this.noseMesh);
     this.group.add(this.noseMesh);
 
     this._buildEyes();
     this._buildWhiskers();
+    this._buildCheekLines();
+  }
+
+  // A shallow "W" mouth curve hanging just below the nose.
+  _buildMouth(parent) {
+    const points = [
+      [-0.08, -0.075, -0.03],
+      [-0.03, -0.055, 0.0],
+      [0, -0.07, 0.02],
+      [0.03, -0.055, 0.0],
+      [0.08, -0.075, -0.03],
+    ].flat();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    parent.add(new THREE.Line(geo, this.whiskerMaterial));
+  }
+
+  // Two subtle curved accent lines under the eyes, hinting at the cheek's
+  // fur-flow contour that a plain lat/long grid can't reproduce on its own.
+  _buildCheekLines() {
+    for (const side of [-1, 1]) {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(side * 0.06, -0.02, 0.19),
+        new THREE.Vector3(side * 0.13, -0.06, 0.14),
+        new THREE.Vector3(side * 0.17, -0.02, 0.05),
+      ]);
+      const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(8));
+      this.headPivot.add(new THREE.Line(geo, this.whiskerMaterial));
+    }
   }
 
   _buildEyes() {
@@ -271,6 +307,14 @@ export class Cat {
       pupilGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
       eye.add(new THREE.Points(pupilGeo, pupilMaterial));
 
+      // small bright glint, offset up-and-in from the pupil like a light reflection
+      const glintGeo = new THREE.BufferGeometry();
+      glintGeo.setAttribute('position', new THREE.Float32BufferAttribute([side * -0.012, 0.014, 0.006], 3));
+      const glint = new THREE.Points(glintGeo, pupilMaterial.clone());
+      glint.material.size = 0.03;
+      eye.add(glint);
+
+      ring.scale.set(1.3, 1, 1); // almond shape, not a perfect circle
       eye.position.set(side * 0.095, 0.015, 0.195);
       this.headPivot.add(eye);
     }
@@ -309,6 +353,18 @@ export class Cat {
       innerGeo.translate(0, 0.19 * 0.6, 0.01);
       innerGeo.scale(1, 1, 0.32);
       group.add(this._wireframeMesh(innerGeo));
+
+      // stray fur wisps poking past the ear tip — kept short, bloom makes
+      // even short thin lines read much larger than their true length
+      const wispPts = [
+        0, 0.37, 0, 0.015, 0.405, 0.008,
+        0, 0.37, 0, -0.008, 0.41, -0.006,
+      ];
+      const wispGeo = new THREE.BufferGeometry();
+      wispGeo.setAttribute('position', new THREE.Float32BufferAttribute(wispPts, 3));
+      const wispMaterial = this.whiskerMaterial.clone();
+      wispMaterial.opacity = 0.3;
+      group.add(new THREE.LineSegments(wispGeo, wispMaterial));
 
       this.group.add(group);
       this.ears[side] = group;
