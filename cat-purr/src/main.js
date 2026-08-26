@@ -61,11 +61,11 @@ for (const [note, pose] of Object.entries(KEY_TO_POSE)) {
 }
 const modRow = document.createElement('div');
 modRow.className = 'row';
-modRow.innerHTML = `<span class="key">Mod wheel</span><span>camera drift + shimmer</span>`;
+modRow.innerHTML = `<span class="key">Mod wheel</span><span>spin camera around the cat</span>`;
 legendRows.appendChild(modRow);
 
 console.log('[cat-purr] key -> pose mapping', KEY_TO_POSE);
-console.log('[cat-purr] mod wheel CC', MOD_WHEEL_CC, '-> camera drift + shimmer');
+console.log('[cat-purr] mod wheel CC', MOD_WHEEL_CC, '-> spin camera around the cat');
 
 const midiStatusEl = document.getElementById('midi-status');
 function setMidiStatus({ ok, message }) {
@@ -116,7 +116,6 @@ initMIDI({
 // ---------------------------------------------------------------------------
 let smoothedModWheel = 0;
 const lookAt = new THREE.Vector3(0, 1.0, -0.2);
-const baseAngle = 0; // front-facing, looking the cat in the eye
 
 function animate() {
   requestAnimationFrame(animate);
@@ -125,14 +124,14 @@ function animate() {
 
   smoothedModWheel += (modWheelNorm - smoothedModWheel) * Math.min(1, dt * 2);
 
-  cat.setShimmerTarget(SHIMMER.base + smoothedModWheel * (SHIMMER.max - SHIMMER.base));
+  cat.setShimmerTarget(SHIMMER.base);
   cat.update(dt, elapsed);
 
-  const driftAmount = CAMERA.driftBase + smoothedModWheel * (CAMERA.driftMax - CAMERA.driftBase);
-  const angle = baseAngle + Math.sin(elapsed * CAMERA.driftSpeed) * driftAmount;
+  const sway = Math.sin(elapsed * CAMERA.swaySpeed) * CAMERA.ambientSway;
+  const angle = CAMERA.orbitBaseAngle + smoothedModWheel * CAMERA.orbitRange + sway;
   camera.position.x = Math.sin(angle) * CAMERA.distance;
   camera.position.z = Math.cos(angle) * CAMERA.distance;
-  camera.position.y = CAMERA.height + Math.sin(elapsed * CAMERA.driftSpeed * 0.6) * driftAmount * 0.4;
+  camera.position.y = CAMERA.height + Math.sin(elapsed * CAMERA.swaySpeed * 0.6) * CAMERA.ambientSway * 0.4;
   camera.lookAt(lookAt);
 
   composer.render();
