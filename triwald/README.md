@@ -10,7 +10,7 @@ hardware required.
 
 | Sensor | Voice | Character |
 | --- | --- | --- |
-| Ambient light (camera) | Bass | Slow, sustained, smoothed, harmonically rich for speaker audibility — scale-quantized |
+| Ambient light (camera) | Bass | Soft ambient pad with a reverb wash, slow attack/release — scale-quantized |
 | Microphone | Lead | Pitch/amplitude-tracked, monophonic, the most reactive voice — scale-quantized |
 | Motion (accelerometer + gyroscope) | Percussion | Unscaled, irregular/polyrhythmic hits, synthesized woody timbres |
 
@@ -70,7 +70,14 @@ scale entirely.
   perceptual luminance, exponentially smoothed, then mapped to a scale degree
   with hysteresis (a candidate note must hold for ~0.9s) and a minimum hold
   time (~1.8s) before the bass voice actually changes pitch — this is what
-  keeps it slow-moving rather than flickering with every camera frame.
+  keeps it slow-moving rather than flickering with every camera frame. The
+  voice itself is a soft ambient pad (two gently detuned triangle
+  oscillators, a slow-breathing lowpass filter, a synthesized-impulse
+  reverb send) rather than a punchy low tone. A retrigger (light moving to a
+  new note while still enabled) cuts the previous note fast; only an actual
+  note-off (the voice being switched off) gets the long ~1.6s release into
+  the reverb tail — so quick successive notes never pile up into an
+  overlapping wash.
 - **Mic → Lead**: a from-scratch autocorrelation pitch detector (bounded to a
   70–1200 Hz lag range so it stays cheap on old hardware) with a first-strong-peak
   search rather than a global-max search, specifically to avoid picking an
@@ -97,7 +104,7 @@ scale entirely.
 This app was built without a physical Android device attached, so the
 constants tuned here (smoothing rates, thresholds, envelope times) are a
 best-effort calibration rather than something hand-tested in the field.
-Two rounds of on-device feedback have gone into fixes so far:
+Three rounds of on-device feedback have gone into fixes so far:
 
 - **Bass register raised twice** (C2–G3 → C3–G4 → now C4–G5, overlapping the
   bottom of the lead's own range) **and switched from sine/triangle
@@ -131,6 +138,33 @@ Two rounds of on-device feedback have gone into fixes so far:
   percussion zone's level bar in the visualizer reacts to raw motion
   continuously (not just on a triggered hit), so waving the phone while
   watching that bar is the fastest way to tell which case it is.
+
+- **Every synthesized note/hit now disconnects its audio nodes once it
+  finishes**, which it previously didn't. This is the likely root cause of
+  "sound stops entirely after a few seconds of moving the phone" reported on
+  an iPhone 15 Pro: leaving stopped-but-still-connected nodes in the graph is
+  a known way to make Safari/WebKit's Web Audio implementation degrade and
+  eventually go silent once enough of them accumulate, and percussion in
+  particular can fire many hits per second under continuous motion. Every
+  voice (bass, lead, percussion) now attaches an `onended` handler that
+  disconnects all of that note's nodes, and the bass voice's own retrigger
+  path was fixed to actually take the fast-cutoff branch it was supposed to
+  (it previously always went through the slow release first, so the fast
+  path was unreachable dead code).
+- **Mic sensitivity raised substantially** — the fixed absolute noise-gate
+  floor (independent of the adaptive one) was set high enough that it
+  dominated in any normal quiet-ish room, which is what made it need
+  something close to shouting to trigger. Lowered by more than 3x, with the
+  onset/hold multipliers rebalanced to match; simulated against the same
+  persistent-noise scenario as the previous phantom-tone fix to confirm it
+  still gates closed in silence.
+- **Motion thresholds lowered further** in general, on top of the
+  accelerometer-only robustness fix from the previous round. Separately: a
+  phone with no gyroscope hardware (reported on an older Android device)
+  simply gets `rotationRate: null` from `devicemotion`, which this app
+  already handles gracefully by falling back to accelerometer magnitude
+  alone — expected behavior, not a bug, though it does mean percussion on a
+  gyroscope-less phone responds only to real shakes, not gentle tilts.
 
 Given the wide range of phone speakers, mic hardware, and accelerometer/
 gyroscope behavior across Android devices, further tuning may still be needed
