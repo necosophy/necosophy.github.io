@@ -1,7 +1,7 @@
 // Bump this on any deploy that changes cached assets — the browser diffs
 // this file byte-for-byte to notice an update, and activate() below
 // clears out whatever cache name doesn't match.
-var CACHE_NAME = 'triwald-v2';
+var CACHE_NAME = 'triwald-v3';
 
 var ASSETS = [
   './',
