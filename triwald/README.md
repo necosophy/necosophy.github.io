@@ -10,7 +10,7 @@ hardware required.
 
 | Sensor | Voice | Character |
 | --- | --- | --- |
-| Ambient light (camera) | Bass | Slow, sustained, smoothed — scale-quantized |
+| Ambient light (camera) | Bass | Slow, sustained, smoothed, harmonically rich for speaker audibility — scale-quantized |
 | Microphone | Lead | Pitch/amplitude-tracked, monophonic, the most reactive voice — scale-quantized |
 | Motion (accelerometer + gyroscope) | Percussion | Unscaled, irregular/polyrhythmic hits, synthesized woody timbres |
 
@@ -96,24 +96,41 @@ scale entirely.
 
 This app was built without a physical Android device attached, so the
 constants tuned here (smoothing rates, thresholds, envelope times) are a
-best-effort calibration rather than something hand-tested in the field. One
-round of on-device feedback has already gone into fixes:
+best-effort calibration rather than something hand-tested in the field.
+Two rounds of on-device feedback have gone into fixes so far:
 
-- **Bass register was raised an octave** (was C2–G3, now C3–G4) and its
-  sub-octave doubling oscillator replaced with a same-octave detuned unison —
-  old/small phone speakers roll off hard below ~150–200Hz, so the original
-  register was close to inaudible without headphones no matter how loud it
-  was mixed.
+- **Bass register raised twice** (C2–G3 → C3–G4 → now C4–G5, overlapping the
+  bottom of the lead's own range) **and switched from sine/triangle
+  oscillators to sawtooth.** A phone speaker can't move enough air below
+  ~200–300Hz to make a genuinely low register audible at any volume; the
+  sawtooth's rich harmonics also matter as much as the register change, since
+  they put real energy into the 500Hz–2kHz band the speaker actually
+  projects (a raw low fundamental plays back very weakly even once it's
+  nominally "in range"). The voice is told apart from the lead by its slow
+  attack and warmer filtering, not by occupying a lower pitch range anymore.
 - **The mic's noise floor now adapts continuously**, not only while gated
   closed, with separate onset/hold thresholds (a Schmitt trigger). Previously,
   a room whose ambient/self-noise sat above the fixed gate threshold (the mic
   stream deliberately disables echoCancellation/noiseSuppression/AGC, for
   cleaner pitch tracking) left the floor stuck too low to ever close the gate,
   so the lead voice could hold a phantom tone through real silence.
-- **Percussion sensitivity was raised substantially** and gyroscope
-  rotation-rate was added alongside accelerometer magnitude, per the note
-  above — the original acceleration-only thresholds needed a fairly hard
-  shake to register at all.
+- **Percussion's motion detection was made more robust, not just more
+  sensitive.** It previously trusted `event.acceleration` (gravity already
+  removed) when a device offered it, falling back to computing that removal
+  itself only otherwise. `event.acceleration` depends on the OS/browser doing
+  its own sensor fusion, which is exactly the kind of feature that's flaky or
+  absent on older/cheaper Android phones — this app's actual target hardware
+  — so gravity removal is now always done in-app from
+  `accelerationIncludingGravity` alone, which needs only a basic
+  accelerometer. Thresholds were also lowered substantially again and the
+  gyroscope's contribution to the combined motion signal was increased, and
+  the hits themselves are louder and a touch longer for a tiny speaker's
+  limited excursion/efficiency. If percussion is still silent after this, the
+  most likely remaining cause is `devicemotion` not firing at all on that
+  device/browser rather than a threshold still being too high — the
+  percussion zone's level bar in the visualizer reacts to raw motion
+  continuously (not just on a triggered hit), so waving the phone while
+  watching that bar is the fastest way to tell which case it is.
 
 Given the wide range of phone speakers, mic hardware, and accelerometer/
 gyroscope behavior across Android devices, further tuning may still be needed
