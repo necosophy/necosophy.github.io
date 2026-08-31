@@ -11,7 +11,7 @@ hardware required.
 | Sensor | Voice | Character |
 | --- | --- | --- |
 | Ambient light (camera) | Bass | Soft ambient pad with a reverb wash, slow attack/release — scale-quantized |
-| Microphone | Lead | Pitch/amplitude-tracked, monophonic, the most reactive voice — scale-quantized |
+| Microphone | Kick | Long 808-style kick — knock transient + a ringing bass tail, pitch/amplitude-triggered — scale-quantized |
 | Motion (accelerometer + gyroscope) | Percussion | Unscaled, irregular/polyrhythmic hits, synthesized woody timbres |
 
 Motion uses only the phone's accelerometer and gyroscope (both delivered by
@@ -20,7 +20,7 @@ at all.
 
 Each voice is independently monophonic (one note at a time), but all three run
 simultaneously and layer freely — toggle any combination on or off with the tap
-targets at the top of the screen. The bass and lead share one scale, switchable
+targets at the top of the screen. The bass and kick share one scale, switchable
 from the dropdown (F minor by default); percussion deliberately ignores the
 scale entirely.
 
@@ -38,18 +38,18 @@ scale entirely.
 ## Using it
 
 1. Open the link above in Chrome on Android.
-2. Tap **Light → Bass**, **Mic → Lead**, and/or **Motion → Percussion** to turn
+2. Tap **Light → Bass**, **Mic → Kick**, and/or **Motion → Percussion** to turn
    on any combination of voices — each prompts for its own permission the
    first time.
-3. Pick a scale (root + mode) from the dropdown; it retunes the bass and lead
+3. Pick a scale (root + mode) from the dropdown; it retunes the bass and kick
    voices immediately, live.
-4. Watch the three-zone visualizer (left = bass, middle = lead, right =
+4. Watch the three-zone visualizer (left = bass, middle = kick, right =
    percussion) — a continuous level bar shows the raw sensor signal, and
    particle bursts mark each actual note or hit.
 5. Tap **Record** to start capturing a take at real millisecond resolution.
    Tap it again to stop, name the file, then export.
 6. **Export .mid** writes a 3-track Standard MIDI File (bass on channel 1,
-   lead on channel 2, percussion on channel 10 using GM drum note numbers) from
+   kick on channel 2, percussion on channel 10 using GM drum note numbers) from
    the exact same note/timing data the voices played live. **Export audio**
    re-renders that same data offline through the same synth engine and
    downloads it as a `.wav`. Both try the device's native share sheet first
@@ -78,12 +78,19 @@ scale entirely.
   note-off (the voice being switched off) gets the long ~1.6s release into
   the reverb tail — so quick successive notes never pile up into an
   overlapping wash.
-- **Mic → Lead**: a from-scratch autocorrelation pitch detector (bounded to a
-  70–1200 Hz lag range so it stays cheap on old hardware) with a first-strong-peak
-  search rather than a global-max search, specifically to avoid picking an
-  octave-down subharmonic instead of the true fundamental. Detected pitch is
-  quantized to the nearest note in the active scale; amplitude drives velocity
-  and note-on/off gating.
+- **Mic → Kick**: pitch/amplitude detection is the same from-scratch
+  autocorrelation pitch detector as before (bounded to a 70–1200 Hz lag range
+  so it stays cheap on old hardware, with a first-strong-peak search rather
+  than a global-max one to avoid picking an octave-down subharmonic), but
+  what it triggers is a long 808-style kick rather than a sustained lead
+  tone: a sine oscillator's pitch drops fast from 5x the target frequency
+  down to it (~45ms, the "knock"), then rings out at that pitch through a
+  soft-clip waveshaper for drive (a 1.1–1.8s decay depending on velocity —
+  the "bass" tail), with a short filtered-noise click layered on the attack
+  for extra percussive definition. Each detected onset triggers one
+  self-contained hit — the kick decays on its own regardless of how long the
+  mic keeps picking up sound, rather than being held open/closed by ongoing
+  amplitude the way the old lead voice was.
 - **Motion → Percussion**: linear acceleration magnitude *and* gyroscope
   rotation-rate magnitude are combined into one motion-energy signal (a still
   phone rotated gently produces almost no accelerometer signal but a clear
@@ -166,10 +173,24 @@ Three rounds of on-device feedback have gone into fixes so far:
   alone — expected behavior, not a bug, though it does mean percussion on a
   gyroscope-less phone responds only to real shakes, not gentle tilts.
 
+- **The mic voice was redesigned from a sustained lead into a long 808-style
+  kick**, on request: a fast pitch-drop knock transient into a soft-clipped,
+  ringing bass tail (1.1–1.8s), rather than a tone that's held open as long
+  as the mic keeps picking up sound. Its pitch register was also lowered
+  (A2–E4, down from C4–C6) to actually feel like a kick's "bass," while
+  staying mostly above the ~100–150Hz floor a phone speaker can reproduce —
+  the same lesson the bass voice's register learned earlier — and to keep it
+  out of the bass pad's own register for a cleaner mix between the two.
+  Silence no longer cuts this voice's release early (a real kick is meant to
+  ring out after its trigger ends); a retrigger still relies on the same
+  internal hard-cut fix the bass voice got, so rapid retriggers don't
+  overlap into a pileup either.
+
 Given the wide range of phone speakers, mic hardware, and accelerometer/
 gyroscope behavior across Android devices, further tuning may still be needed
-— the relevant constants (`BASS_LOW`/`BASS_HIGH`, the `MIC_*` gate constants,
-the `MOTION_*`/`ROTATION_WEIGHT` constants) are grouped together in
+— the relevant constants (`BASS_LOW`/`BASS_HIGH`, `LEAD_LOW`/`LEAD_HIGH` (the
+kick's pitch register), the `MIC_*` gate constants, the
+`MOTION_*`/`ROTATION_WEIGHT` constants) are grouped together in
 `index.html` and commented for exactly this kind of adjustment.
 
 ## License
