@@ -12,7 +12,11 @@ hardware required.
 | --- | --- | --- |
 | Ambient light (camera) | Bass | Slow, sustained, smoothed — scale-quantized |
 | Microphone | Lead | Pitch/amplitude-tracked, monophonic, the most reactive voice — scale-quantized |
-| Motion (accelerometer) | Percussion | Unscaled, irregular/polyrhythmic hits, synthesized woody timbres |
+| Motion (accelerometer + gyroscope) | Percussion | Unscaled, irregular/polyrhythmic hits, synthesized woody timbres |
+
+Motion uses only the phone's accelerometer and gyroscope (both delivered by
+the same `devicemotion` event) — it does not use, request, or need GPS/location
+at all.
 
 Each voice is independently monophonic (one note at a time), but all three run
 simultaneously and layer freely — toggle any combination on or off with the tap
@@ -73,26 +77,49 @@ scale entirely.
   octave-down subharmonic instead of the true fundamental. Detected pitch is
   quantized to the nearest note in the active scale; amplitude drives velocity
   and note-on/off gating.
-- **Motion → Percussion**: acceleration magnitude is compared against an
-  adaptive noise floor to detect peaks (not a fixed threshold), each of which
-  fires one hit immediately. A sufficiently strong peak also schedules a short
-  grace-note roll using an evenly-distributed Euclidean rhythm (alternating
-  3-in-8 and 5-in-12 groupings — a 3:2 / 5:4 feel) with humanized timing,
-  rather than quantizing to any grid. All three percussion timbres (wood
-  block, clave, shaker) are synthesized from filtered noise bursts and short
-  tone partials — no samples.
+- **Motion → Percussion**: linear acceleration magnitude *and* gyroscope
+  rotation-rate magnitude are combined into one motion-energy signal (a still
+  phone rotated gently produces almost no accelerometer signal but a clear
+  rotation-rate one, so folding both in is what makes small in-hand tilts and
+  twists register, not just literal shakes). That combined signal is compared
+  against an adaptive noise floor to detect peaks (not a fixed threshold),
+  each of which fires one hit immediately. A sufficiently strong peak also
+  schedules a short grace-note roll using an evenly-distributed Euclidean
+  rhythm (alternating 3-in-8 and 5-in-12 groupings — a 3:2 / 5:4 feel) with
+  humanized timing, rather than quantizing to any grid. All three percussion
+  timbres (wood block, clave, shaker) are synthesized from filtered noise
+  bursts and short tone partials — no samples.
 - A service worker (`sw.js`) pre-caches the app shell for fully offline use,
   same pattern as Pentawald.
 
-## Development note
+## Development / calibration notes
 
-This app was built and syntax/logic-verified (MIDI file structure, WAV header
-math, scale generation, and the pitch detector's accuracy against synthetic
-tones) in an environment without a physical Android device attached. **It has
-not yet been hand-tested on real hardware** — the constants tuned here
-(smoothing rates, thresholds, envelope times) are a first-pass calibration and
-will likely need adjustment once tried against a real camera, mic, and
-accelerometer in the field.
+This app was built without a physical Android device attached, so the
+constants tuned here (smoothing rates, thresholds, envelope times) are a
+best-effort calibration rather than something hand-tested in the field. One
+round of on-device feedback has already gone into fixes:
+
+- **Bass register was raised an octave** (was C2–G3, now C3–G4) and its
+  sub-octave doubling oscillator replaced with a same-octave detuned unison —
+  old/small phone speakers roll off hard below ~150–200Hz, so the original
+  register was close to inaudible without headphones no matter how loud it
+  was mixed.
+- **The mic's noise floor now adapts continuously**, not only while gated
+  closed, with separate onset/hold thresholds (a Schmitt trigger). Previously,
+  a room whose ambient/self-noise sat above the fixed gate threshold (the mic
+  stream deliberately disables echoCancellation/noiseSuppression/AGC, for
+  cleaner pitch tracking) left the floor stuck too low to ever close the gate,
+  so the lead voice could hold a phantom tone through real silence.
+- **Percussion sensitivity was raised substantially** and gyroscope
+  rotation-rate was added alongside accelerometer magnitude, per the note
+  above — the original acceleration-only thresholds needed a fairly hard
+  shake to register at all.
+
+Given the wide range of phone speakers, mic hardware, and accelerometer/
+gyroscope behavior across Android devices, further tuning may still be needed
+— the relevant constants (`BASS_LOW`/`BASS_HIGH`, the `MIC_*` gate constants,
+the `MOTION_*`/`ROTATION_WEIGHT` constants) are grouped together in
+`index.html` and commented for exactly this kind of adjustment.
 
 ## License
 
