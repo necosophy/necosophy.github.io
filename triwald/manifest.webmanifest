@@ -1,7 +1,7 @@
 {
   "name": "Triwald — Ambient Sonifier",
   "short_name": "Triwald",
-  "description": "Offline tri-sensor ambient instrument: light, mic, and motion as three live voices.",
+  "description": "Offline tri-sensor ambient instrument: light, compass heading, and motion as three live voices.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
