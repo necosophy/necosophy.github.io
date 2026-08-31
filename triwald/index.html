@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Triwald — ambient sonifier</title>
+<meta name="description" content="Offline tri-sensor ambient instrument: light, mic, and motion as three live voices.">
+<meta name="theme-color" content="#0a0908">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Triwald">
+<style>
+  @font-face {
+    font-family: 'Julius Sans One';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/JuliusSansOne-Regular.woff2') format('woff2');
+  }
+
+  :root {
+    --bg: #0a0908;
+    --panel: transparent;
+    --ink: #d8dad7;
+    --silver: #c9ccc9;
+    --muted: rgba(201, 204, 201, 0.5);
+    --hairline: rgba(201, 204, 201, 0.14);
+    --copper: #c47a3d;
+    --copper-dim: rgba(196, 122, 61, 0.4);
+    --sage: #8a9a86;
+    --sage-dim: rgba(138, 154, 134, 0.4);
+    --rec: #c1503f;
+    /* Per-voice colors, shared by sensor rows, the header mark and the
+       visualizer zones so the same voice always reads as the same color
+       everywhere in the UI. */
+    --bass: var(--copper);
+    --bass-dim: var(--copper-dim);
+    --lead: var(--silver);
+    --lead-dim: rgba(201, 204, 201, 0.4);
+    --perc: var(--sage);
+    --perc-dim: var(--sage-dim);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    overscroll-behavior: none;
+  }
+
+  body {
+    color: var(--ink);
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Courier New", monospace;
+    font-weight: 300;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1.25rem 0.5rem;
+  }
+
+  #triwald-mark {
+    width: 1.4rem;
+    height: 1.4rem;
+    flex-shrink: 0;
+  }
+
+  .mark-outline {
+    fill: none;
+    stroke: var(--copper);
+    stroke-width: 1.4;
+    opacity: 0.32;
+    animation: copper-drift 8.5s ease-in-out infinite;
+  }
+
+  .mark-dot {
+    opacity: 0.4;
+    transition: opacity 0.4s ease;
+    animation: copper-drift 7s ease-in-out infinite;
+  }
+
+  .mark-dot[data-voice="bass"] { fill: var(--bass); }
+  .mark-dot[data-voice="lead"] { fill: var(--lead); animation-duration: 9.2s; animation-delay: -1.4s; }
+  .mark-dot[data-voice="perc"] { fill: var(--perc); animation-duration: 6.6s; animation-delay: -3.1s; }
+
+  .mark-dot.active {
+    animation: none;
+    opacity: 1;
+  }
+
+  @keyframes copper-drift {
+    0%   { opacity: 0.22; }
+    17%  { opacity: 0.42; }
+    38%  { opacity: 0.18; }
+    55%  { opacity: 0.46; }
+    79%  { opacity: 0.26; }
+    100% { opacity: 0.22; }
+  }
+
+  .wordmark {
+    font-family: 'Julius Sans One', ui-monospace, "SFMono-Regular", monospace;
+    font-size: 1.5rem;
+    font-weight: 400;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--copper);
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0.85rem 1.25rem 1.6rem;
+    gap: 1.1rem;
+    min-height: 0;
+  }
+
+  #sensor-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .sensor-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .sensor-row:active {
+    border-color: var(--muted);
+  }
+
+  .sensor-row .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .sensor-row .label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sensor-row .hint {
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .sensor-row[data-voice="bass"].active { border-left-color: var(--bass); }
+  .sensor-row[data-voice="bass"].active .dot { background: var(--bass); }
+  .sensor-row[data-voice="lead"].active { border-left-color: var(--lead); }
+  .sensor-row[data-voice="lead"].active .dot { background: var(--lead); }
+  .sensor-row[data-voice="perc"].active { border-left-color: var(--perc); }
+  .sensor-row[data-voice="perc"].active .dot { background: var(--perc); }
+
+  .sensor-row.error { border-left-color: var(--rec); }
+  .sensor-row.error .dot { background: var(--rec); }
+  .sensor-row.error .hint { color: var(--rec); }
+
+  #visualizer-canvas {
+    flex-shrink: 0;
+    display: block;
+    width: 100%;
+    /* A fixed height rather than vh: on mobile, dynamic browser chrome
+       (address bar collapsing) keeps nudging vh-based sizes after
+       layout first settles, which is what left a residual gap at the
+       bottom even with per-frame resize correction (same fix as
+       Pentawald's visualizer). */
+    height: 130px;
+    border-radius: 4px;
+  }
+
+  #scale-panel {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  #scale-panel label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  #scale-panel select {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.6rem 0.5rem;
+  }
+
+  #transport {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.25rem;
+  }
+
+  #rec-readout {
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+  }
+
+  #rec-readout .time {
+    color: var(--ink);
+    font-size: 1rem;
+  }
+
+  #record-btn {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rec);
+    background: var(--panel);
+    border: 1px solid var(--rec);
+    border-radius: 6px;
+    padding: 1.25rem 1rem;
+  }
+
+  #record-btn.recording {
+    background: var(--rec);
+    border-color: var(--rec);
+    color: #170a08;
+    animation: rec-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.78; }
+  }
+
+  #export-panel {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--hairline);
+    margin-top: 0.25rem;
+  }
+
+  #export-panel[hidden] {
+    display: none;
+  }
+
+  #export-panel label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  #filename-input {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 300;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+  }
+
+  #filename-input:focus {
+    outline: none;
+    border-color: var(--sage);
+  }
+
+  .export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .export-actions button {
+    flex: 1 1 auto;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sage);
+    background: var(--panel);
+    border: 1px solid var(--sage);
+    border-radius: 4px;
+    padding: 0.9rem 0.75rem;
+  }
+
+  #discard-btn {
+    flex: 0 0 auto;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 300;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+  }
+
+  #export-status {
+    min-height: 1.2em;
+    font-size: 0.8rem;
+    color: var(--sage);
+  }
+
+  #export-status.error {
+    color: var(--rec);
+  }
+
+  #buffer-info {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Triwald</div>
+  <svg id="triwald-mark" viewBox="0 0 100 100" aria-hidden="true">
+    <polygon class="mark-outline" points="50,14 88,79 12,79"></polygon>
+    <circle class="mark-dot" data-voice="bass" cx="50" cy="14" r="7"></circle>
+    <circle class="mark-dot" data-voice="perc" cx="12" cy="79" r="7"></circle>
+    <circle class="mark-dot" data-voice="lead" cx="88" cy="79" r="7"></circle>
+  </svg>
+</header>
+
+<main>
+  <div id="sensor-rows">
+    <div class="sensor-row" id="row-bass" data-voice="bass">
+      <span class="dot"></span>
+      <span class="label">Light &rarr; Bass</span>
+      <span class="hint">tap to enable</span>
+    </div>
+    <div class="sensor-row" id="row-lead" data-voice="lead">
+      <span class="dot"></span>
+      <span class="label">Mic &rarr; Lead</span>
+      <span class="hint">tap to enable</span>
+    </div>
+    <div class="sensor-row" id="row-perc" data-voice="perc">
+      <span class="dot"></span>
+      <span class="label">Motion &rarr; Percussion</span>
+      <span class="hint">tap to enable</span>
+    </div>
+  </div>
+
+  <canvas id="visualizer-canvas" aria-hidden="true"></canvas>
+
+  <div id="scale-panel">
+    <label for="scale-root">Scale</label>
+    <select id="scale-root"></select>
+    <select id="scale-mode"></select>
+  </div>
+
+  <div id="transport">
+    <div id="rec-readout"><span class="time">00:00</span> &middot; 0 notes</div>
+    <button id="record-btn">&#9679; Record</button>
+  </div>
+
+  <div id="export-panel" hidden>
+    <div id="buffer-info"></div>
+    <div>
+      <label for="filename-input">Filename</label>
+      <input id="filename-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div class="export-actions">
+      <button id="export-midi-btn">Export .mid</button>
+      <button id="export-wav-btn">Export audio</button>
+      <button id="discard-btn">Discard</button>
+    </div>
+    <div id="export-status" aria-live="polite"></div>
+  </div>
+</main>
+
+<script>
+// Visualizer module — three zones (left/middle/right = bass/lead/perc),
+// modeled directly on Pentawald's particle visualizer so the two apps
+// share a visual language. Each zone also renders a continuous level
+// bar (brightness / mic amplitude / motion energy) in addition to the
+// particle bursts fired on discrete note/hit events, since these three
+// sensors are continuous signals rather than discrete MIDI notes.
+// Public API: init(canvasEl), setLevel(voice, level0to1), trigger(voice, posFrac, velocityFrac).
+window.Visualizer = (function () {
+  'use strict';
+
+  var canvas, ctx, width = 0, height = 0;
+  var particles = [];
+  var MAX_PARTICLES = 60;
+  var running = false;
+
+  var VOICES = ['bass', 'lead', 'perc'];
+  var COLORS = {
+    bass: [196, 122, 61],
+    lead: [201, 204, 201],
+    perc: [138, 154, 134]
+  };
+  var levels = { bass: 0, lead: 0, perc: 0 };
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function zoneIndex(voice) {
+    var i = VOICES.indexOf(voice);
+    return i === -1 ? 0 : i;
+  }
+
+  // Re-checked every frame rather than only on window "resize" — mobile
+  // viewport height keeps settling after this module's first layout
+  // read (address bar collapsing, late reflow), and a stale backing
+  // store is exactly what makes drawing land in the wrong part of the
+  // box and look stretched/blurry. The early return keeps this cheap.
+  function resize() {
+    if (!canvas) return;
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width === width && rect.height === height && canvas.width > 0) return;
+    var dpr = window.devicePixelRatio || 1;
+    width = rect.width;
+    height = rect.height;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function setLevel(voice, level) {
+    if (!(voice in levels)) return;
+    levels[voice] = clamp(level, 0, 1);
+  }
+
+  // posFrac positions the particle within its zone (0 = zone's left
+  // edge, 1 = zone's right edge) — e.g. brightness, pitch height, or
+  // hit intensity. velocityFrac drives size/speed, same as Pentawald.
+  function trigger(voice, posFrac, velocityFrac) {
+    if (!ctx || !(voice in COLORS)) return;
+    if (particles.length >= MAX_PARTICLES) particles.shift();
+
+    var zi = zoneIndex(voice);
+    var zoneW = width / VOICES.length;
+    var zoneX = zi * zoneW;
+    var pFrac = clamp(posFrac, 0, 1);
+    var vFrac = clamp(velocityFrac, 0, 1);
+
+    particles.push({
+      x: zoneX + pFrac * zoneW,
+      y: height * 0.55 + (Math.random() - 0.5) * height * 0.2,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -15 - vFrac * 25,
+      r: 1 + vFrac * 2.5,
+      life: 1,
+      decay: 0.014 + Math.random() * 0.008,
+      color: COLORS[voice]
+    });
+  }
+
+  function drawZones() {
+    var zoneW = width / VOICES.length;
+
+    // Faint dividers between the three zones.
+    ctx.strokeStyle = 'rgba(216, 218, 215, 0.08)';
+    ctx.lineWidth = 1;
+    for (var i = 1; i < VOICES.length; i++) {
+      var x = Math.round(i * zoneW) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // A continuous level bar per zone, rising from the bottom, so the
+    // raw sensor signal is visible even before it crosses a note/hit
+    // threshold.
+    for (var v = 0; v < VOICES.length; v++) {
+      var voice = VOICES[v];
+      var level = levels[voice];
+      if (level <= 0.002) continue;
+      var c = COLORS[voice];
+      var barH = level * height * 0.85;
+      var barX = v * zoneW + zoneW * 0.18;
+      var barW = zoneW * 0.64;
+      ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.16)';
+      ctx.fillRect(barX, height - barH, barW, barH);
+    }
+  }
+
+  function step() {
+    if (!running) return;
+    resize();
+
+    ctx.fillStyle = 'rgba(10, 9, 8, 0.22)';
+    ctx.fillRect(0, 0, width, height);
+
+    drawZones();
+
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx * 0.02;
+      p.y += p.vy * 0.02;
+      p.vy += 0.35;
+      p.life -= p.decay;
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      var alpha = Math.max(0, p.life);
+      var c = p.color;
+      var r = p.r * alpha;
+
+      // A soft body plus a brighter core reads as more "detailed" than
+      // a single flat disc, for two extra fill calls.
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (alpha * 0.55).toFixed(3) + ')';
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(' +
+        Math.min(255, c[0] + 60) + ',' + Math.min(255, c[1] + 60) + ',' + Math.min(255, c[2] + 60) +
+        ',' + alpha.toFixed(3) + ')';
+      ctx.arc(p.x, p.y, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  function init(canvasEl) {
+    canvas = canvasEl;
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    if (!running) {
+      running = true;
+      requestAnimationFrame(step);
+    }
+  }
+
+  return { init: init, setLevel: setLevel, trigger: trigger };
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------
+  // Scale utility — shared by the bass and lead voices. Motion/
+  // percussion deliberately never touches this: it stays unscaled.
+  // ---------------------------------------------------------------
+
+  var ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  var MODES = {
+    'minor': [0, 2, 3, 5, 7, 8, 10],
+    'major': [0, 2, 4, 5, 7, 9, 11],
+    'dorian': [0, 2, 3, 5, 7, 9, 10],
+    'harmonic minor': [0, 2, 3, 5, 7, 8, 11],
+    'minor pentatonic': [0, 3, 5, 7, 10],
+    'major pentatonic': [0, 2, 4, 7, 9]
+  };
+  var MODE_ORDER = ['minor', 'major', 'dorian', 'harmonic minor', 'minor pentatonic', 'major pentatonic'];
+
+  var BASS_LOW = 36, BASS_HIGH = 55;   // C2..G3, slow sustained register
+  var LEAD_LOW = 60, LEAD_HIGH = 84;   // C4..C6, mic pitch-tracking range
+
+  var scaleRootEl = document.getElementById('scale-root');
+  var scaleModeEl = document.getElementById('scale-mode');
+
+  ROOT_NAMES.forEach(function (name, i) {
+    var opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = name;
+    scaleRootEl.appendChild(opt);
+  });
+  MODE_ORDER.forEach(function (name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    scaleModeEl.appendChild(opt);
+  });
+
+  scaleRootEl.value = 5; // F
+  scaleModeEl.value = 'minor';
+
+  var bassNotes = [];
+  var leadNotes = [];
+
+  function notesInRange(rootSemi, intervals, low, high) {
+    var out = [];
+    for (var n = low; n <= high; n++) {
+      var rel = ((n - rootSemi) % 12 + 12) % 12;
+      if (intervals.indexOf(rel) !== -1) out.push(n);
+    }
+    return out;
+  }
+
+  function recomputeScale() {
+    var root = parseInt(scaleRootEl.value, 10);
+    var intervals = MODES[scaleModeEl.value] || MODES.minor;
+    bassNotes = notesInRange(root, intervals, BASS_LOW, BASS_HIGH);
+    leadNotes = notesInRange(root, intervals, LEAD_LOW, LEAD_HIGH);
+    // A pentagonal/pentatonic pick near the register edges can leave a
+    // sparse list — fall back to the chromatic range rather than ever
+    // handing a voice an empty note set.
+    if (bassNotes.length === 0) { for (var b = BASS_LOW; b <= BASS_HIGH; b++) bassNotes.push(b); }
+    if (leadNotes.length === 0) { for (var l = LEAD_LOW; l <= LEAD_HIGH; l++) leadNotes.push(l); }
+  }
+
+  scaleRootEl.addEventListener('change', recomputeScale);
+  scaleModeEl.addEventListener('change', recomputeScale);
+  recomputeScale();
+
+  function nearestNote(list, midiFloat) {
+    var best = list[0], bestDist = Math.abs(midiFloat - best);
+    for (var i = 1; i < list.length; i++) {
+      var d = Math.abs(midiFloat - list[i]);
+      if (d < bestDist) { best = list[i]; bestDist = d; }
+    }
+    return best;
+  }
+
+  function midiToFreq(note) {
+    return 440 * Math.pow(2, (note - 69) / 12);
+  }
+
+  // ---------------------------------------------------------------
+  // Shared synthesis engine. A factory so the exact same voice code
+  // drives both live monitoring (fed by the AudioContext) and the
+  // offline WAV render at export time (fed by an OfflineAudioContext)
+  // — the same internal note events, replayed through the same
+  // instrument, live or offline.
+  // ---------------------------------------------------------------
+
+  var PERC_MIDI = { woodblock: 76, clave: 75, shaker: 70 }; // GM channel-10 note numbers
+
+  function makeNoiseBuffer(ctx, seconds) {
+    var buf = ctx.createBuffer(1, Math.max(1, Math.round(ctx.sampleRate * seconds)), ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  function createEngine(ctx, destination) {
+    var noiseBuffer = makeNoiseBuffer(ctx, 0.3);
+    var bassVoice = null;
+    var leadVoice = null;
+
+    function bassOn(note, velocity, time) {
+      time = time || ctx.currentTime;
+      var freq = midiToFreq(note);
+      var osc1 = ctx.createOscillator();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq, time);
+      var osc2 = ctx.createOscillator();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(freq / 2, time); // sub-octave for body
+      osc2.detune.setValueAtTime(4, time);
+
+      var filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(700, time);
+      filter.Q.value = 0.7;
+
+      var gainNode = ctx.createGain();
+      var peak = Math.min(0.22, 0.06 + (velocity / 127) * 0.16);
+      var attack = 0.7;
+      gainNode.gain.setValueAtTime(0, time);
+      gainNode.gain.linearRampToValueAtTime(peak, time + attack);
+
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(destination);
+      osc1.start(time);
+      osc2.start(time);
+
+      bassVoice = { osc1: osc1, osc2: osc2, gain: gainNode };
+    }
+
+    function bassOff(time) {
+      time = time || ctx.currentTime;
+      if (!bassVoice) return;
+      var v = bassVoice;
+      bassVoice = null;
+      var release = 1.4;
+      v.gain.gain.cancelScheduledValues(time);
+      v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
+      v.gain.gain.linearRampToValueAtTime(0.0001, time + release);
+      var stopAt = time + release + 0.1;
+      try { v.osc1.stop(stopAt); } catch (e) {}
+      try { v.osc2.stop(stopAt); } catch (e) {}
+    }
+
+    function leadOn(note, velocity, time) {
+      time = time || ctx.currentTime;
+      var freq = midiToFreq(note);
+      var osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
+
+      var filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2600, time);
+      filter.Q.value = 1.2;
+
+      var gainNode = ctx.createGain();
+      var peak = Math.min(0.24, 0.05 + (velocity / 127) * 0.2);
+      var attack = 0.02;
+      gainNode.gain.setValueAtTime(0, time);
+      gainNode.gain.linearRampToValueAtTime(peak, time + attack);
+
+      osc.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(destination);
+      osc.start(time);
+
+      leadVoice = { osc: osc, gain: gainNode };
+    }
+
+    function leadOff(time) {
+      time = time || ctx.currentTime;
+      if (!leadVoice) return;
+      var v = leadVoice;
+      leadVoice = null;
+      var release = 0.18;
+      v.gain.gain.cancelScheduledValues(time);
+      v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
+      v.gain.gain.linearRampToValueAtTime(0.0001, time + release);
+      var stopAt = time + release + 0.05;
+      try { v.osc.stop(stopAt); } catch (e) {}
+    }
+
+    // Three woody/natural one-shots, synthesized (no samples): a
+    // bandpassed noise burst for the transient, plus a tuned partial
+    // for body where that reads as more "solid object" than pure noise.
+    function percHit(timbre, velocity, time) {
+      time = time || ctx.currentTime;
+      var vel = Math.max(0, Math.min(1, velocity / 127));
+      var peak = 0.08 + vel * 0.34;
+
+      if (timbre === 'shaker') {
+        var src = ctx.createBufferSource();
+        src.buffer = noiseBuffer;
+        var bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 7000;
+        bp.Q.value = 1.1;
+        var g = ctx.createGain();
+        var dur = 0.09 + vel * 0.08;
+        g.gain.setValueAtTime(0, time);
+        g.gain.linearRampToValueAtTime(peak * 0.7, time + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
+        src.connect(bp);
+        bp.connect(g);
+        g.connect(destination);
+        src.start(time);
+        src.stop(time + dur + 0.02);
+      } else if (timbre === 'clave') {
+        var osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2450, time);
+        osc.frequency.exponentialRampToValueAtTime(2000, time + 0.04);
+        var og = ctx.createGain();
+        og.gain.setValueAtTime(peak, time);
+        og.gain.exponentialRampToValueAtTime(0.0008, time + 0.05);
+        osc.connect(og);
+        og.connect(destination);
+        osc.start(time);
+        osc.stop(time + 0.07);
+
+        var tsrc = ctx.createBufferSource();
+        tsrc.buffer = noiseBuffer;
+        var thp = ctx.createBiquadFilter();
+        thp.type = 'highpass';
+        thp.frequency.value = 3500;
+        var tg = ctx.createGain();
+        tg.gain.setValueAtTime(peak * 0.4, time);
+        tg.gain.exponentialRampToValueAtTime(0.0006, time + 0.015);
+        tsrc.connect(thp);
+        thp.connect(tg);
+        tg.connect(destination);
+        tsrc.start(time);
+        tsrc.stop(time + 0.02);
+      } else { // 'woodblock' default
+        var nsrc = ctx.createBufferSource();
+        nsrc.buffer = noiseBuffer;
+        var nbp = ctx.createBiquadFilter();
+        nbp.type = 'bandpass';
+        nbp.frequency.value = 950;
+        nbp.Q.value = 7;
+        var ng = ctx.createGain();
+        ng.gain.setValueAtTime(peak * 0.8, time);
+        ng.gain.exponentialRampToValueAtTime(0.0008, time + 0.045);
+        nsrc.connect(nbp);
+        nbp.connect(ng);
+        ng.connect(destination);
+        nsrc.start(time);
+        nsrc.stop(time + 0.06);
+
+        var bosc = ctx.createOscillator();
+        bosc.type = 'sine';
+        bosc.frequency.setValueAtTime(480, time);
+        var bg = ctx.createGain();
+        bg.gain.setValueAtTime(peak * 0.5, time);
+        bg.gain.exponentialRampToValueAtTime(0.0008, time + 0.09);
+        bosc.connect(bg);
+        bg.connect(destination);
+        bosc.start(time);
+        bosc.stop(time + 0.1);
+      }
+    }
+
+    return { bassOn: bassOn, bassOff: bassOff, leadOn: leadOn, leadOff: leadOff, percHit: percHit };
+  }
+
+  // ---------------------------------------------------------------
+  // Live audio context + engine. Created lazily on the first user
+  // gesture (iOS/Android both require this); every sensor-enable tap
+  // also nudges it, defensively.
+  // ---------------------------------------------------------------
+
+  var audioCtx = null;
+  var masterGain = null;
+  var liveEngine = null;
+
+  function initAudio() {
+    if (audioCtx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.85;
+    masterGain.connect(audioCtx.destination);
+    liveEngine = createEngine(audioCtx, masterGain);
+  }
+
+  function resumeAudio() {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  document.addEventListener('pointerdown', resumeAudio, { once: true, passive: true });
+
+  // ---------------------------------------------------------------
+  // Recording — the internal note/timing data structure. Every voice
+  // pushes into this array whenever a note actually sounds, regardless
+  // of MIDI; it's the single source of truth for both the readout and
+  // both export formats.
+  // ---------------------------------------------------------------
+
+  var PPQ = 960;
+  var TEMPO_US_PER_QUARTER = 500000; // 120 BPM
+  var TICKS_PER_MS = PPQ / (TEMPO_US_PER_QUARTER / 1000);
+  var CHANNEL = { bass: 1, lead: 2, perc: 10 };
+
+  var recording = false;
+  var recordStartPerf = 0;
+  var recordStartDate = null;
+  var recordedDurationMs = 0;
+  var recordedEvents = []; // { tsMs, command: 0x9|0x8, channel, note, velocity }
+  var noteOnCount = 0;
+  var wakeLock = null;
+  var timerHandle = null;
+
+  function logEvent(tsMs, command, voice, note, velocity) {
+    recordedEvents.push({ tsMs: Math.max(0, tsMs), command: command, channel: CHANNEL[voice], note: note, velocity: velocity });
+    if (command === 0x9) { noteOnCount++; updateReadout(); }
+  }
+
+  // ---------------------------------------------------------------
+  // Sensor rows / header dots — shared plumbing.
+  // ---------------------------------------------------------------
+
+  var rowEls = {
+    bass: document.getElementById('row-bass'),
+    lead: document.getElementById('row-lead'),
+    perc: document.getElementById('row-perc')
+  };
+  var hintEls = {
+    bass: rowEls.bass.querySelector('.hint'),
+    lead: rowEls.lead.querySelector('.hint'),
+    perc: rowEls.perc.querySelector('.hint')
+  };
+  var markDots = {
+    bass: document.querySelector('.mark-dot[data-voice="bass"]'),
+    lead: document.querySelector('.mark-dot[data-voice="lead"]'),
+    perc: document.querySelector('.mark-dot[data-voice="perc"]')
+  };
+  var markDotTimers = {};
+
+  function pulseMarkDot(voice) {
+    var dot = markDots[voice];
+    if (!dot) return;
+    dot.classList.add('active');
+    if (markDotTimers[voice]) clearTimeout(markDotTimers[voice]);
+    markDotTimers[voice] = setTimeout(function () { dot.classList.remove('active'); }, 180);
+  }
+
+  function setRowState(voice, active, hint, isError) {
+    var row = rowEls[voice];
+    row.classList.toggle('active', !!active);
+    row.classList.toggle('error', !!isError);
+    hintEls[voice].textContent = hint;
+  }
+
+  // ---------------------------------------------------------------
+  // Voice 1 — Light (camera) -> Bass. Slow, sustained, smoothed.
+  // ---------------------------------------------------------------
+
+  var LIGHT_SAMPLE_MS = 150;
+  var LIGHT_SMOOTH_ALPHA = 0.12;   // EMA weight for each new raw sample
+  var LIGHT_STABLE_MS = 900;       // candidate index must hold this long
+  var LIGHT_MIN_HOLD_MS = 1800;    // minimum time between actual note changes
+  var BASS_VELOCITY = 80;
+
+  var lightStream = null;
+  var lightVideo = null;
+  var lightSampleCanvas = null;
+  var lightSampleCtx = null;
+  var lightInterval = null;
+  var lightSmoothed = null;
+  var lightCandidateIdx = -1;
+  var lightCandidateSince = 0;
+  var lightLastChangeAt = 0;
+  var currentBassNote = null;
+  var bassActive = false;
+
+  function bassNoteOn(note) {
+    var now = performance.now();
+    if (liveEngine) liveEngine.bassOn(note, BASS_VELOCITY);
+    if (recording) logEvent(now - recordStartPerf, 0x9, 'bass', note, BASS_VELOCITY);
+    currentBassNote = note;
+    pulseMarkDot('bass');
+  }
+
+  function bassNoteOff() {
+    if (currentBassNote === null) return;
+    var now = performance.now();
+    if (liveEngine) liveEngine.bassOff();
+    if (recording) logEvent(now - recordStartPerf, 0x8, 'bass', currentBassNote, 0);
+    currentBassNote = null;
+  }
+
+  function lightSample() {
+    if (!lightVideo || lightVideo.readyState < 2) return;
+    lightSampleCtx.drawImage(lightVideo, 0, 0, 8, 8);
+    var data = lightSampleCtx.getImageData(0, 0, 8, 8).data;
+    var sum = 0, count = 0;
+    for (var i = 0; i < data.length; i += 4) {
+      sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      count++;
+    }
+    var raw = (sum / count) / 255;
+    lightSmoothed = (lightSmoothed === null) ? raw : lightSmoothed + (raw - lightSmoothed) * LIGHT_SMOOTH_ALPHA;
+
+    Visualizer.setLevel('bass', lightSmoothed);
+
+    var idx = Math.max(0, Math.min(bassNotes.length - 1, Math.floor(lightSmoothed * bassNotes.length)));
+    var now = performance.now();
+
+    if (idx !== lightCandidateIdx) {
+      lightCandidateIdx = idx;
+      lightCandidateSince = now;
+    }
+
+    var targetNote = bassNotes[idx];
+    var stableLongEnough = (now - lightCandidateSince) >= LIGHT_STABLE_MS;
+    var heldLongEnough = (now - lightLastChangeAt) >= LIGHT_MIN_HOLD_MS;
+
+    if (currentBassNote === null) {
+      // First note: don't wait for stability, but still respect the
+      // smoothed value so we don't start on a jitter spike.
+      bassNoteOn(targetNote);
+      lightLastChangeAt = now;
+      Visualizer.trigger('bass', idx / Math.max(1, bassNotes.length - 1), 0.5);
+    } else if (targetNote !== currentBassNote && stableLongEnough && heldLongEnough) {
+      bassNoteOff();
+      bassNoteOn(targetNote);
+      lightLastChangeAt = now;
+      Visualizer.trigger('bass', idx / Math.max(1, bassNotes.length - 1), 0.5);
+    }
+  }
+
+  function enableBass() {
+    resumeAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setRowState('bass', false, 'camera unsupported', true);
+      return;
+    }
+    setRowState('bass', false, 'requesting…', false);
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(function (stream) {
+        lightStream = stream;
+        lightVideo = document.createElement('video');
+        lightVideo.muted = true;
+        lightVideo.setAttribute('playsinline', '');
+        lightVideo.srcObject = stream;
+        lightVideo.play().catch(function () {});
+        lightSampleCanvas = document.createElement('canvas');
+        lightSampleCanvas.width = 8;
+        lightSampleCanvas.height = 8;
+        lightSampleCtx = lightSampleCanvas.getContext('2d', { willReadFrequently: true });
+        lightSmoothed = null;
+        lightCandidateIdx = -1;
+        bassActive = true;
+        lightInterval = setInterval(lightSample, LIGHT_SAMPLE_MS);
+        setRowState('bass', true, 'tap to disable', false);
+      })
+      .catch(function () {
+        setRowState('bass', false, 'camera blocked — retry', true);
+      });
+  }
+
+  function disableBass() {
+    bassActive = false;
+    if (lightInterval) { clearInterval(lightInterval); lightInterval = null; }
+    if (lightStream) { lightStream.getTracks().forEach(function (t) { t.stop(); }); lightStream = null; }
+    lightVideo = null;
+    bassNoteOff();
+    Visualizer.setLevel('bass', 0);
+    setRowState('bass', false, 'tap to enable', false);
+  }
+
+  rowEls.bass.addEventListener('click', function () {
+    if (bassActive) disableBass(); else enableBass();
+  });
+
+  // ---------------------------------------------------------------
+  // Voice 2 — Microphone -> Lead. Pitch/amplitude tracked, monophonic,
+  // the most reactive voice.
+  // ---------------------------------------------------------------
+
+  var MIC_FFT_SIZE = 1024;
+  var MIC_MIN_PROCESS_MS = 33; // throttle to ~30fps regardless of rAF rate
+  var MIC_MIN_RMS = 0.02;
+  var MIC_NOISE_ADAPT = 0.98;
+  var MIC_CORR_CONFIDENCE = 0.35;
+  var MIC_RELEASE_HANG_MS = 180;
+  var MIC_STABLE_FRAMES = 2;
+  var MIC_MIN_FREQ = 70, MIC_MAX_FREQ = 1200;
+  var MIC_PEAK_RMS = 0.35;
+
+  var micStream = null;
+  var micSourceNode = null;
+  var micAnalyser = null;
+  var micBuf = null;
+  var micActive = false;
+  var micRafHandle = null;
+  var micLastProcessAt = 0;
+  var micNoiseFloor = 0.01;
+  var micBelowSince = 0;
+  var micPendingNote = null;
+  var micPendingCount = 0;
+  var currentLeadNote = null;
+
+  function leadNoteOn(note, velocity) {
+    var now = performance.now();
+    if (liveEngine) liveEngine.leadOn(note, velocity);
+    if (recording) logEvent(now - recordStartPerf, 0x9, 'lead', note, velocity);
+    currentLeadNote = note;
+    pulseMarkDot('lead');
+  }
+
+  function leadNoteOff() {
+    if (currentLeadNote === null) return;
+    var now = performance.now();
+    if (liveEngine) liveEngine.leadOff();
+    if (recording) logEvent(now - recordStartPerf, 0x8, 'lead', currentLeadNote, 0);
+    currentLeadNote = null;
+  }
+
+  // Autocorrelation pitch detector, restricted to the lag range that
+  // covers MIC_MIN_FREQ..MIC_MAX_FREQ so the O(n*lags) cost stays small
+  // enough for an old phone at ~30fps. Returns -1 when the signal isn't
+  // confidently pitched (silence, noise, percussive transient).
+  function detectPitch(buf, sampleRate) {
+    var n = buf.length;
+    var energy0 = 0;
+    for (var i = 0; i < n; i++) energy0 += buf[i] * buf[i];
+    if (energy0 < 1e-6) return -1;
+
+    var minLag = Math.max(2, Math.floor(sampleRate / MIC_MAX_FREQ));
+    var maxLag = Math.min(n - 1, Math.ceil(sampleRate / MIC_MIN_FREQ));
+
+    var corr = new Array(maxLag - minLag + 1);
+    var globalMax = 0;
+    for (var lag = minLag; lag <= maxLag; lag++) {
+      var c = 0;
+      var count = n - lag;
+      for (var j = 0; j < count; j++) c += buf[j] * buf[j + lag];
+      c = c / count;
+      corr[lag - minLag] = c;
+      if (c > globalMax) globalMax = c;
+    }
+
+    // A harmonic tone correlates strongly not just at its true period
+    // but at every integer multiple of it too, and those longer lags
+    // (lower frequencies) can occasionally out-score the fundamental if
+    // we just took the global max — a classic octave-down pitch error.
+    // Scanning for the FIRST strong local peak, ascending from the
+    // shortest lag, finds the fundamental instead of a subharmonic.
+    var threshold = globalMax * 0.85;
+    var bestLag = -1, bestCorr = 0;
+    for (var li = 1; li < corr.length - 1; li++) {
+      if (corr[li] >= threshold && corr[li] >= corr[li - 1] && corr[li] >= corr[li + 1]) {
+        bestLag = li + minLag;
+        bestCorr = corr[li];
+        break;
+      }
+    }
+    if (bestLag === -1) {
+      var gi = corr.indexOf(globalMax);
+      bestLag = gi + minLag;
+      bestCorr = globalMax;
+    }
+
+    if (bestCorr < (energy0 / n) * MIC_CORR_CONFIDENCE) return -1;
+
+    // Parabolic interpolation around the best lag for sub-sample precision.
+    var refined = bestLag;
+    var idx = bestLag - minLag;
+    if (idx > 0 && idx < corr.length - 1) {
+      var c0 = corr[idx - 1], c1 = corr[idx], c2 = corr[idx + 1];
+      var denom = (c0 + c2 - 2 * c1);
+      if (denom !== 0) refined = bestLag + 0.5 * (c0 - c2) / denom;
+    }
+
+    return sampleRate / refined;
+  }
+
+  function micProcess(ts) {
+    if (!micActive) return;
+    micRafHandle = requestAnimationFrame(micProcess);
+    if (ts - micLastProcessAt < MIC_MIN_PROCESS_MS) return;
+    micLastProcessAt = ts;
+
+    micAnalyser.getFloatTimeDomainData(micBuf);
+    var rms = 0;
+    for (var i = 0; i < micBuf.length; i++) rms += micBuf[i] * micBuf[i];
+    rms = Math.sqrt(rms / micBuf.length);
+
+    var now = performance.now();
+    var gateOpen = rms > Math.max(MIC_MIN_RMS, micNoiseFloor * 2.2);
+
+    if (!gateOpen) {
+      micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT + rms * (1 - MIC_NOISE_ADAPT);
+      Visualizer.setLevel('lead', Math.min(1, rms / MIC_PEAK_RMS));
+      if (currentLeadNote !== null) {
+        if (!micBelowSince) micBelowSince = now;
+        else if (now - micBelowSince > MIC_RELEASE_HANG_MS) { leadNoteOff(); micBelowSince = 0; micPendingNote = null; micPendingCount = 0; }
+      }
+      return;
+    }
+
+    micBelowSince = 0;
+    var freq = detectPitch(micBuf, micAnalyser.context.sampleRate);
+    var levelFrac = Math.min(1, rms / MIC_PEAK_RMS);
+    Visualizer.setLevel('lead', levelFrac);
+
+    if (freq <= 0) return;
+
+    var midiFloat = 69 + 12 * Math.log(freq / 440) / Math.LN2;
+    var note = nearestNote(leadNotes, midiFloat);
+    var velocity = Math.max(1, Math.min(127, Math.round(20 + Math.min(1, rms / MIC_PEAK_RMS) * 107)));
+
+    if (note === micPendingNote) {
+      micPendingCount++;
+    } else {
+      micPendingNote = note;
+      micPendingCount = 1;
+    }
+
+    if (currentLeadNote === null) {
+      if (micPendingCount >= 1) {
+        leadNoteOn(note, velocity);
+        var posFrac = (note - LEAD_LOW) / Math.max(1, LEAD_HIGH - LEAD_LOW);
+        Visualizer.trigger('lead', posFrac, levelFrac);
+      }
+    } else if (note !== currentLeadNote && micPendingCount >= MIC_STABLE_FRAMES) {
+      leadNoteOff();
+      leadNoteOn(note, velocity);
+      var posFrac2 = (note - LEAD_LOW) / Math.max(1, LEAD_HIGH - LEAD_LOW);
+      Visualizer.trigger('lead', posFrac2, levelFrac);
+    }
+  }
+
+  function enableLead() {
+    resumeAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setRowState('lead', false, 'mic unsupported', true);
+      return;
+    }
+    setRowState('lead', false, 'requesting…', false);
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false
+    }).then(function (stream) {
+      micStream = stream;
+      micSourceNode = audioCtx.createMediaStreamSource(stream);
+      micAnalyser = audioCtx.createAnalyser();
+      micAnalyser.fftSize = MIC_FFT_SIZE;
+      micBuf = new Float32Array(micAnalyser.fftSize);
+      micSourceNode.connect(micAnalyser); // analysis only — never connected to destination
+      micActive = true;
+      micNoiseFloor = 0.01;
+      micLastProcessAt = 0;
+      micRafHandle = requestAnimationFrame(micProcess);
+      setRowState('lead', true, 'tap to disable', false);
+    }).catch(function () {
+      setRowState('lead', false, 'mic blocked — retry', true);
+    });
+  }
+
+  function disableLead() {
+    micActive = false;
+    if (micRafHandle) { cancelAnimationFrame(micRafHandle); micRafHandle = null; }
+    if (micSourceNode) { try { micSourceNode.disconnect(); } catch (e) {} micSourceNode = null; }
+    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
+    micAnalyser = null;
+    leadNoteOff();
+    Visualizer.setLevel('lead', 0);
+    setRowState('lead', false, 'tap to enable', false);
+  }
+
+  rowEls.lead.addEventListener('click', function () {
+    if (micActive) disableLead(); else enableLead();
+  });
+
+  // ---------------------------------------------------------------
+  // Voice 3 — Motion -> Percussion. Unscaled, irregular/polyrhythmic,
+  // woody synthesized timbres. Triggered by motion peaks, not a grid.
+  // ---------------------------------------------------------------
+
+  var MOTION_GRAVITY_ALPHA = 0.9;
+  var MOTION_NOISE_ALPHA = 0.97;
+  var MOTION_THRESH_MULT = 2.2;
+  var MOTION_MIN_THRESH = 1.0;
+  var MOTION_REFRACTORY_MS = 90;
+  var MOTION_MAX_DELTA = 18;
+  var PERC_HIT_DUR_MS = 55;
+
+  var motionActive = false;
+  var motionHandler = null;
+  var gravity = { x: 0, y: 0, z: 0 };
+  var motionNoiseFloor = 0.5;
+  var lastHitAt = 0;
+  var percQueue = []; // { audioTime, tsMs, timbre, velocity }
+  var percDrainInterval = null;
+  var polyToggle = false;
+
+  // Standard "Bresenham-style" Euclidean rhythm distribution: evenly
+  // spreads `pulses` hits across `steps` slots. Used only to shape a
+  // short grace-note roll after a strong motion peak, giving 3:2 / 5:4
+  // groupings instead of a metronomic grid.
+  function euclideanPattern(pulses, steps) {
+    var pattern = [];
+    var bucket = 0;
+    for (var i = 0; i < steps; i++) {
+      bucket += pulses;
+      if (bucket >= steps) { bucket -= steps; pattern.push(true); }
+      else pattern.push(false);
+    }
+    return pattern;
+  }
+
+  function schedulePercHit(delaySec, timbre, velocity) {
+    if (!audioCtx) return;
+    var nowPerf = performance.now();
+    var tsMs = recording ? (nowPerf - recordStartPerf + delaySec * 1000) : 0;
+    percQueue.push({
+      audioTime: audioCtx.currentTime + delaySec,
+      tsMs: tsMs,
+      timbre: timbre,
+      velocity: velocity
+    });
+  }
+
+  function drainPercQueue() {
+    if (!audioCtx || percQueue.length === 0) return;
+    var now = audioCtx.currentTime;
+    for (var i = percQueue.length - 1; i >= 0; i--) {
+      var ev = percQueue[i];
+      if (ev.audioTime <= now + 0.05) {
+        var startAt = Math.max(now, ev.audioTime);
+        if (liveEngine) liveEngine.percHit(ev.timbre, ev.velocity, startAt);
+        if (recording) {
+          var note = PERC_MIDI[ev.timbre] || PERC_MIDI.woodblock;
+          logEvent(ev.tsMs, 0x9, 'perc', note, ev.velocity);
+          logEvent(ev.tsMs + PERC_HIT_DUR_MS, 0x8, 'perc', note, 0);
+        }
+        pulseMarkDot('perc');
+        percQueue.splice(i, 1);
+      }
+    }
+  }
+
+  function chooseTimbre(intensity) {
+    if (intensity > 0.66) return 'clave';
+    if (intensity > 0.33) return 'woodblock';
+    return 'shaker';
+  }
+
+  function onDeviceMotion(event) {
+    var acc = event.acceleration && (event.acceleration.x !== null) ? event.acceleration : null;
+    var raw = acc || event.accelerationIncludingGravity;
+    if (!raw || raw.x === null) return;
+
+    var mag;
+    if (acc) {
+      mag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+    } else {
+      // No gravity-free reading available on this platform — estimate
+      // and subtract a slow-moving gravity vector ourselves.
+      gravity.x = gravity.x * MOTION_GRAVITY_ALPHA + raw.x * (1 - MOTION_GRAVITY_ALPHA);
+      gravity.y = gravity.y * MOTION_GRAVITY_ALPHA + raw.y * (1 - MOTION_GRAVITY_ALPHA);
+      gravity.z = gravity.z * MOTION_GRAVITY_ALPHA + raw.z * (1 - MOTION_GRAVITY_ALPHA);
+      var lx = raw.x - gravity.x, ly = raw.y - gravity.y, lz = raw.z - gravity.z;
+      mag = Math.sqrt(lx * lx + ly * ly + lz * lz);
+    }
+
+    motionNoiseFloor = motionNoiseFloor * MOTION_NOISE_ALPHA + mag * (1 - MOTION_NOISE_ALPHA);
+    Visualizer.setLevel('perc', Math.min(1, mag / (MOTION_MAX_DELTA * 0.6)));
+
+    var delta = mag - motionNoiseFloor;
+    var now = performance.now();
+    if (delta > Math.max(MOTION_MIN_THRESH, motionNoiseFloor * MOTION_THRESH_MULT) &&
+        (now - lastHitAt) > MOTION_REFRACTORY_MS) {
+      lastHitAt = now;
+      var intensity = Math.max(0, Math.min(1, delta / MOTION_MAX_DELTA));
+      var velocity = Math.round(30 + intensity * 97);
+      var timbre = chooseTimbre(intensity);
+
+      schedulePercHit(0, timbre, velocity);
+      Visualizer.trigger('perc', Math.random(), intensity);
+
+      // Strong hits spawn a short irregular roll — alternating between
+      // a 3-in-8 and a 5-in-12 grouping (3:2 / 5:4 feel) rather than a
+      // quantized grid, with humanized timing and decaying velocity.
+      if (intensity > 0.5) {
+        polyToggle = !polyToggle;
+        var steps = polyToggle ? 8 : 12;
+        var pulses = polyToggle ? 3 : 5;
+        var windowMs = polyToggle ? 340 : 480;
+        var pattern = euclideanPattern(pulses, steps);
+        var stepMs = windowMs / steps;
+        for (var s = 1; s < steps; s++) {
+          if (!pattern[s]) continue;
+          var humanizeMs = (Math.random() - 0.5) * 14;
+          var graceVel = Math.max(12, Math.round(velocity * (0.55 - 0.05 * s)));
+          schedulePercHit((s * stepMs + humanizeMs) / 1000, 'shaker', graceVel);
+        }
+      }
+    }
+  }
+
+  function attachMotionListener() {
+    motionHandler = onDeviceMotion;
+    window.addEventListener('devicemotion', motionHandler);
+    motionActive = true;
+    percDrainInterval = setInterval(drainPercQueue, 25);
+    setRowState('perc', true, 'tap to disable', false);
+  }
+
+  function enablePerc() {
+    resumeAudio();
+    if (!window.DeviceMotionEvent) {
+      setRowState('perc', false, 'motion unsupported', true);
+      return;
+    }
+    if (!window.isSecureContext) {
+      setRowState('perc', false, 'needs https', true);
+      return;
+    }
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      // Must be called synchronously from this click handler — no
+      // awaited work before it — or iOS silently denies the prompt.
+      DeviceMotionEvent.requestPermission().then(function (state) {
+        if (state === 'granted') attachMotionListener();
+        else setRowState('perc', false, 'permission denied', true);
+      }).catch(function () {
+        setRowState('perc', false, 'permission denied', true);
+      });
+    } else {
+      attachMotionListener();
+    }
+  }
+
+  function disablePerc() {
+    motionActive = false;
+    if (motionHandler) { window.removeEventListener('devicemotion', motionHandler); motionHandler = null; }
+    if (percDrainInterval) { clearInterval(percDrainInterval); percDrainInterval = null; }
+    percQueue = [];
+    gravity = { x: 0, y: 0, z: 0 };
+    Visualizer.setLevel('perc', 0);
+    setRowState('perc', false, 'tap to enable', false);
+  }
+
+  rowEls.perc.addEventListener('click', function () {
+    if (motionActive) disablePerc(); else enablePerc();
+  });
+
+  // ---------------------------------------------------------------
+  // Transport — record / stop / readout. Mirrors Pentawald's transport
+  // exactly, just recording from the three sensor voices instead of a
+  // USB MIDI device.
+  // ---------------------------------------------------------------
+
+  var recordBtn = document.getElementById('record-btn');
+  var recReadout = document.getElementById('rec-readout');
+  var exportPanel = document.getElementById('export-panel');
+  var filenameInput = document.getElementById('filename-input');
+  var exportMidiBtn = document.getElementById('export-midi-btn');
+  var exportWavBtn = document.getElementById('export-wav-btn');
+  var discardBtn = document.getElementById('discard-btn');
+  var exportStatusEl = document.getElementById('export-status');
+  var bufferInfoEl = document.getElementById('buffer-info');
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function formatElapsed(ms) {
+    var totalSeconds = Math.floor(ms / 1000);
+    var mm = Math.floor(totalSeconds / 60);
+    var ss = totalSeconds % 60;
+    return pad2(mm) + ':' + pad2(ss);
+  }
+
+  function updateReadout() {
+    var elapsed = recording ? (performance.now() - recordStartPerf) : 0;
+    recReadout.innerHTML = '<span class="time">' + formatElapsed(elapsed) + '</span> &middot; ' +
+      noteOnCount + ' note' + (noteOnCount === 1 ? '' : 's');
+  }
+
+  function acquireWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (lock) {
+      wakeLock = lock;
+      wakeLock.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { wakeLock = null; });
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (recording && document.visibilityState === 'visible' && !wakeLock) acquireWakeLock();
+  });
+
+  function defaultFilenamePrefix(date) {
+    var y = date.getFullYear();
+    var mo = pad2(date.getMonth() + 1);
+    var d = pad2(date.getDate());
+    var h = pad2(date.getHours());
+    var mi = pad2(date.getMinutes());
+    return y + '-' + mo + '-' + d + '_' + h + mi;
+  }
+
+  function showExportStatus(text, isError) {
+    exportStatusEl.textContent = text;
+    exportStatusEl.classList.toggle('error', !!isError);
+  }
+
+  function summarizeEvents(evts) {
+    var summary = { total: evts.length, bass: 0, lead: 0, perc: 0 };
+    evts.forEach(function (e) {
+      if (e.command !== 0x9) return;
+      if (e.channel === CHANNEL.bass) summary.bass++;
+      else if (e.channel === CHANNEL.lead) summary.lead++;
+      else if (e.channel === CHANNEL.perc) summary.perc++;
+    });
+    return summary;
+  }
+
+  function showExportPanel() {
+    filenameInput.value = defaultFilenamePrefix(recordStartDate || new Date());
+    showExportStatus('');
+    var summary = summarizeEvents(recordedEvents);
+    bufferInfoEl.textContent = recordedEvents.length + ' events — ' +
+      summary.bass + ' bass, ' + summary.lead + ' lead, ' + summary.perc + ' perc notes';
+    exportPanel.hidden = false;
+  }
+
+  function startRecording() {
+    recordedEvents = [];
+    noteOnCount = 0;
+    recordStartPerf = performance.now();
+    recordStartDate = new Date();
+    recording = true;
+    exportPanel.hidden = true;
+    recordBtn.textContent = '■ Stop';
+    recordBtn.classList.add('recording');
+    updateReadout();
+    acquireWakeLock();
+    timerHandle = setInterval(updateReadout, 250);
+  }
+
+  function stopRecording() {
+    recording = false;
+    recordedDurationMs = performance.now() - recordStartPerf;
+    clearInterval(timerHandle);
+    timerHandle = null;
+    releaseWakeLock();
+    recordBtn.textContent = '● Record';
+    recordBtn.classList.remove('recording');
+    updateReadout();
+    showExportPanel();
+  }
+
+  recordBtn.addEventListener('click', function () {
+    resumeAudio();
+    if (recording) stopRecording(); else startRecording();
+  });
+
+  discardBtn.addEventListener('click', function () {
+    recordedEvents = [];
+    noteOnCount = 0;
+    exportPanel.hidden = true;
+    showExportStatus('');
+    bufferInfoEl.textContent = '';
+    updateReadout();
+  });
+
+  // --- Standard MIDI File (Type 1) writer, adapted from Pentawald's ---
+
+  function writeVarLen(value) {
+    var bytes = [value & 0x7f];
+    value = Math.floor(value / 128);
+    while (value > 0) {
+      bytes.unshift((value & 0x7f) | 0x80);
+      value = Math.floor(value / 128);
+    }
+    return bytes;
+  }
+
+  function uint16BE(value) { return [(value >>> 8) & 0xff, value & 0xff]; }
+  function uint24BE(value) { return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]; }
+  function uint32BE(value) { return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]; }
+
+  function makeChunk(id, bytes) {
+    var idBytes = [id.charCodeAt(0), id.charCodeAt(1), id.charCodeAt(2), id.charCodeAt(3)];
+    return idBytes.concat(uint32BE(bytes.length), bytes);
+  }
+
+  function trackNameEvent(name) {
+    var nameBytes = [];
+    for (var i = 0; i < name.length; i++) nameBytes.push(name.charCodeAt(i) & 0xff);
+    return writeVarLen(0).concat([0xff, 0x03], writeVarLen(nameBytes.length), nameBytes);
+  }
+
+  function msToTicks(ms) { return Math.round(ms * TICKS_PER_MS); }
+
+  function buildTempoTrack(durationMs) {
+    var bytes = trackNameEvent('Tempo');
+    var prevTick = 0;
+    function emit(tick, metaBytes) {
+      var delta = Math.max(0, tick - prevTick);
+      prevTick = tick;
+      bytes = bytes.concat(writeVarLen(delta), metaBytes);
+    }
+    emit(0, [0xff, 0x51, 0x03].concat(uint24BE(TEMPO_US_PER_QUARTER)));
+    emit(0, [0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08]);
+    var trailing = Math.max(0, msToTicks(durationMs) - prevTick);
+    bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
+    return makeChunk('MTrk', bytes);
+  }
+
+  function buildChannelTrack(channel, name, evts, durationMs) {
+    evts.sort(function (a, b) { return a.tsMs - b.tsMs; });
+    var bytes = trackNameEvent(name);
+    var prevTick = 0;
+    var heldNotes = {};
+
+    function emit(tick, statusByte, d1, d2) {
+      var delta = Math.max(0, tick - prevTick);
+      prevTick = tick;
+      bytes = bytes.concat(writeVarLen(delta), [statusByte, d1, d2]);
+    }
+
+    evts.forEach(function (e) {
+      var tick = msToTicks(e.tsMs);
+      var statusByte = (e.command << 4) | (channel - 1);
+      if (e.command === 0x9) {
+        if (heldNotes[e.note]) emit(tick, 0x80 | (channel - 1), e.note, 0);
+        emit(tick, statusByte, e.note, e.velocity);
+        heldNotes[e.note] = true;
+      } else if (e.command === 0x8) {
+        if (heldNotes[e.note]) { emit(tick, statusByte, e.note, e.velocity); delete heldNotes[e.note]; }
+      }
+    });
+
+    var endTick = Math.max(prevTick, msToTicks(durationMs));
+    Object.keys(heldNotes).forEach(function (note) {
+      emit(endTick, 0x80 | (channel - 1), Number(note), 0);
+    });
+
+    var trailing = Math.max(0, msToTicks(durationMs) - prevTick);
+    bytes = bytes.concat(writeVarLen(trailing), [0xff, 0x2f, 0x00]);
+    return makeChunk('MTrk', bytes);
+  }
+
+  function buildMidiFile(evts, durationMs) {
+    var channelMap = {};
+    evts.forEach(function (e) {
+      if (!channelMap[e.channel]) channelMap[e.channel] = [];
+      channelMap[e.channel].push(e);
+    });
+    var names = { 1: 'Bass (light)', 2: 'Lead (mic)', 10: 'Percussion (motion)' };
+    var channels = Object.keys(channelMap).map(Number).sort(function (a, b) { return a - b; });
+
+    var tracks = [buildTempoTrack(durationMs)];
+    channels.forEach(function (ch) {
+      tracks.push(buildChannelTrack(ch, names[ch] || ('Channel ' + ch), channelMap[ch], durationMs));
+    });
+
+    var headerBytes = uint16BE(1).concat(uint16BE(tracks.length), uint16BE(PPQ));
+    var allBytes = makeChunk('MThd', headerBytes);
+    tracks.forEach(function (t) { allBytes = allBytes.concat(t); });
+    return new Uint8Array(allBytes);
+  }
+
+  // --- Offline audio render + WAV encoder ---
+
+  function renderWavBlob() {
+    var sampleRate = (audioCtx && audioCtx.sampleRate) || 44100;
+    var tailSec = 2.5;
+    var durationSec = Math.max(0.5, recordedDurationMs / 1000 + tailSec);
+    var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    var offlineCtx = new OfflineCtx(2, Math.ceil(sampleRate * durationSec), sampleRate);
+    var offlineGain = offlineCtx.createGain();
+    offlineGain.gain.value = 0.85;
+    offlineGain.connect(offlineCtx.destination);
+    var offlineEngine = createEngine(offlineCtx, offlineGain);
+
+    var sorted = recordedEvents.slice().sort(function (a, b) { return a.tsMs - b.tsMs; });
+    sorted.forEach(function (e) {
+      var time = e.tsMs / 1000;
+      if (e.channel === CHANNEL.bass) {
+        if (e.command === 0x9) offlineEngine.bassOn(e.note, e.velocity, time);
+        else offlineEngine.bassOff(time);
+      } else if (e.channel === CHANNEL.lead) {
+        if (e.command === 0x9) offlineEngine.leadOn(e.note, e.velocity, time);
+        else offlineEngine.leadOff(time);
+      } else if (e.channel === CHANNEL.perc) {
+        if (e.command === 0x9) {
+          var timbreName = Object.keys(PERC_MIDI).filter(function (k) { return PERC_MIDI[k] === e.note; })[0] || 'woodblock';
+          offlineEngine.percHit(timbreName, e.velocity, time);
+        }
+      }
+    });
+
+    return offlineCtx.startRendering().then(function (buffer) {
+      return audioBufferToWav(buffer);
+    });
+  }
+
+  function audioBufferToWav(buffer) {
+    var numCh = buffer.numberOfChannels;
+    var sampleRate = buffer.sampleRate;
+    var dataSize = buffer.length * numCh * 2;
+    var arrBuf = new ArrayBuffer(44 + dataSize);
+    var view = new DataView(arrBuf);
+    var offset = 0;
+
+    function writeString(s) { for (var i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); offset += s.length; }
+    function writeU32(v) { view.setUint32(offset, v, true); offset += 4; }
+    function writeU16(v) { view.setUint16(offset, v, true); offset += 2; }
+
+    writeString('RIFF'); writeU32(36 + dataSize); writeString('WAVE');
+    writeString('fmt '); writeU32(16); writeU16(1); writeU16(numCh);
+    writeU32(sampleRate); writeU32(sampleRate * numCh * 2); writeU16(numCh * 2); writeU16(16);
+    writeString('data'); writeU32(dataSize);
+
+    var channels = [];
+    for (var c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+    for (var i = 0; i < buffer.length; i++) {
+      for (var ch = 0; ch < numCh; ch++) {
+        var sample = Math.max(-1, Math.min(1, channels[ch][i]));
+        sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        view.setInt16(offset, sample, true);
+        offset += 2;
+      }
+    }
+    return new Blob([arrBuf], { type: 'audio/wav' });
+  }
+
+  function sanitizeBaseFilename(name) {
+    name = name.trim().replace(/[\\/:*?"<>|]+/g, '-');
+    if (!name) name = 'triwald_' + Date.now();
+    return name.replace(/\.(mid|wav)$/i, '');
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    return filename;
+  }
+
+  function shareOrDownload(blob, filename, mime) {
+    if (!navigator.share) {
+      downloadBlob(blob, filename);
+      showExportStatus('Downloaded ' + filename);
+      return;
+    }
+    var file;
+    try {
+      file = new File([blob], filename, { type: mime });
+    } catch (err) {
+      downloadBlob(blob, filename);
+      showExportStatus('Downloaded ' + filename);
+      return;
+    }
+    navigator.share({ files: [file], title: filename }).then(function () {
+      showExportStatus('Shared ' + filename);
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') { showExportStatus('Share cancelled'); return; }
+      downloadBlob(blob, filename);
+      showExportStatus('Downloaded ' + filename);
+    });
+  }
+
+  exportMidiBtn.addEventListener('click', function () {
+    var base = sanitizeBaseFilename(filenameInput.value);
+    var bytes = buildMidiFile(recordedEvents, recordedDurationMs);
+    var blob = new Blob([bytes], { type: 'audio/midi' });
+    showExportStatus('Exporting…');
+    shareOrDownload(blob, base + '.mid', 'audio/midi');
+  });
+
+  exportWavBtn.addEventListener('click', function () {
+    var base = sanitizeBaseFilename(filenameInput.value);
+    showExportStatus('Rendering audio…');
+    renderWavBlob().then(function (blob) {
+      shareOrDownload(blob, base + '.wav', 'audio/wav');
+    }).catch(function () {
+      showExportStatus('Audio render failed', true);
+    });
+  });
+
+  Visualizer.init(document.getElementById('visualizer-canvas'));
+})();
+</script>
+
+<script>
+// Registered after load so it never competes with the app's own startup
+// (sensor permission prompts, audio init) for the main thread on first paint.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+
+</body>
+</html>
