@@ -605,11 +605,15 @@ window.Visualizer = (function () {
   };
   var MODE_ORDER = ['minor', 'major', 'dorian', 'harmonic minor', 'minor pentatonic', 'major pentatonic'];
 
-  // C3..G4 rather than C2..G3 — old/small phone speakers roll off hard
-  // below ~150-200Hz, so a "bass" register that actually sits below
-  // that (as this did at 36-55/C2-G3) is nearly inaudible without an
-  // external speaker or headphones no matter how loud it's mixed.
-  var BASS_LOW = 48, BASS_HIGH = 67;
+  // C4..G5, overlapping the bottom of the lead's own range. A phone's
+  // tiny speaker just can't move enough air below ~200-300Hz to make a
+  // true bass register audible at any output level (confirmed twice now
+  // on real hardware, after an earlier C2..G3 and then C3..G4 attempt) —
+  // so this voice is "bass" by character (slow attack, long sustain,
+  // warmer filtering — see bassOn/bassOff below) rather than by sitting
+  // in a low register. It's told apart from the lead by that envelope
+  // and timbre, not by pitch range alone.
+  var BASS_LOW = 60, BASS_HIGH = 79;
   var LEAD_LOW = 60, LEAD_HIGH = 84;   // C4..C6, mic pitch-tracking range
 
   var scaleRootEl = document.getElementById('scale-root');
@@ -697,25 +701,30 @@ window.Visualizer = (function () {
     function bassOn(note, velocity, time) {
       time = time || ctx.currentTime;
       var freq = midiToFreq(note);
+      // A sawtooth rather than a sine: a small phone speaker plays back
+      // a raw low fundamental very weakly, but a harmonically rich wave
+      // puts real energy into the 500Hz-2kHz band the speaker actually
+      // projects, which is what the ear uses to perceive the pitch as
+      // present/loud even though the fundamental itself is faint.
       var osc1 = ctx.createOscillator();
-      osc1.type = 'sine';
+      osc1.type = 'sawtooth';
       osc1.frequency.setValueAtTime(freq, time);
       // A detuned unison in the SAME octave (not a sub-octave) for
       // thickness/beating — a sub-oscillator an octave down would push
       // energy right back into the range a phone speaker can't play.
       var osc2 = ctx.createOscillator();
-      osc2.type = 'triangle';
+      osc2.type = 'sawtooth';
       osc2.frequency.setValueAtTime(freq, time);
-      osc2.detune.setValueAtTime(7, time);
+      osc2.detune.setValueAtTime(9, time);
 
       var filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1600, time);
+      filter.frequency.setValueAtTime(2400, time);
       filter.Q.value = 0.7;
 
       var gainNode = ctx.createGain();
-      var peak = Math.min(0.4, 0.14 + (velocity / 127) * 0.26);
-      var attack = 0.7;
+      var peak = Math.min(0.45, 0.18 + (velocity / 127) * 0.27);
+      var attack = 0.6;
       gainNode.gain.setValueAtTime(0, time);
       gainNode.gain.linearRampToValueAtTime(peak, time + attack);
 
@@ -788,7 +797,11 @@ window.Visualizer = (function () {
     function percHit(timbre, velocity, time) {
       time = time || ctx.currentTime;
       var vel = Math.max(0, Math.min(1, velocity / 127));
-      var peak = 0.08 + vel * 0.34;
+      // A short transient at a "correct" acoustic level still reads as
+      // near-silent on a tiny phone speaker (limited excursion/low
+      // efficiency at low output), so these run louder and a bit longer
+      // than the equivalent would need to be on real speakers.
+      var peak = 0.18 + vel * 0.5;
 
       if (timbre === 'shaker') {
         var src = ctx.createBufferSource();
@@ -798,9 +811,9 @@ window.Visualizer = (function () {
         bp.frequency.value = 7000;
         bp.Q.value = 1.1;
         var g = ctx.createGain();
-        var dur = 0.09 + vel * 0.08;
+        var dur = 0.14 + vel * 0.1;
         g.gain.setValueAtTime(0, time);
-        g.gain.linearRampToValueAtTime(peak * 0.7, time + 0.006);
+        g.gain.linearRampToValueAtTime(peak * 0.75, time + 0.006);
         g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
         src.connect(bp);
         bp.connect(g);
@@ -811,14 +824,14 @@ window.Visualizer = (function () {
         var osc = ctx.createOscillator();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(2450, time);
-        osc.frequency.exponentialRampToValueAtTime(2000, time + 0.04);
+        osc.frequency.exponentialRampToValueAtTime(2000, time + 0.06);
         var og = ctx.createGain();
         og.gain.setValueAtTime(peak, time);
-        og.gain.exponentialRampToValueAtTime(0.0008, time + 0.05);
+        og.gain.exponentialRampToValueAtTime(0.0008, time + 0.09);
         osc.connect(og);
         og.connect(destination);
         osc.start(time);
-        osc.stop(time + 0.07);
+        osc.stop(time + 0.11);
 
         var tsrc = ctx.createBufferSource();
         tsrc.buffer = noiseBuffer;
@@ -826,13 +839,13 @@ window.Visualizer = (function () {
         thp.type = 'highpass';
         thp.frequency.value = 3500;
         var tg = ctx.createGain();
-        tg.gain.setValueAtTime(peak * 0.4, time);
-        tg.gain.exponentialRampToValueAtTime(0.0006, time + 0.015);
+        tg.gain.setValueAtTime(peak * 0.5, time);
+        tg.gain.exponentialRampToValueAtTime(0.0006, time + 0.02);
         tsrc.connect(thp);
         thp.connect(tg);
         tg.connect(destination);
         tsrc.start(time);
-        tsrc.stop(time + 0.02);
+        tsrc.stop(time + 0.03);
       } else { // 'woodblock' default
         var nsrc = ctx.createBufferSource();
         nsrc.buffer = noiseBuffer;
@@ -841,13 +854,13 @@ window.Visualizer = (function () {
         nbp.frequency.value = 950;
         nbp.Q.value = 7;
         var ng = ctx.createGain();
-        ng.gain.setValueAtTime(peak * 0.8, time);
-        ng.gain.exponentialRampToValueAtTime(0.0008, time + 0.045);
+        ng.gain.setValueAtTime(peak, time);
+        ng.gain.exponentialRampToValueAtTime(0.0008, time + 0.08);
         nsrc.connect(nbp);
         nbp.connect(ng);
         ng.connect(destination);
         nsrc.start(time);
-        nsrc.stop(time + 0.06);
+        nsrc.stop(time + 0.1);
 
         var bosc = ctx.createOscillator();
         bosc.type = 'sine';
@@ -1305,11 +1318,11 @@ window.Visualizer = (function () {
 
   var MOTION_GRAVITY_ALPHA = 0.9;
   var MOTION_NOISE_ALPHA = 0.97;
-  var MOTION_THRESH_MULT = 1.5;
-  var MOTION_MIN_THRESH = 0.35;
+  var MOTION_THRESH_MULT = 1.25;
+  var MOTION_MIN_THRESH = 0.18;
   var MOTION_REFRACTORY_MS = 90;
-  var MOTION_MAX_DELTA = 10;
-  var ROTATION_WEIGHT = 0.045; // deg/s -> comparable scale to m/s^2 acceleration
+  var MOTION_MAX_DELTA = 6;
+  var ROTATION_WEIGHT = 0.08; // deg/s -> comparable scale to m/s^2 acceleration
   var PERC_HIT_DUR_MS = 55;
 
   var motionActive = false;
@@ -1374,22 +1387,22 @@ window.Visualizer = (function () {
   }
 
   function onDeviceMotion(event) {
-    var acc = event.acceleration && (event.acceleration.x !== null) ? event.acceleration : null;
-    var raw = acc || event.accelerationIncludingGravity;
-
+    // accelerationIncludingGravity needs only a basic accelerometer and
+    // is close to universally supported; event.acceleration ("linear"
+    // acceleration) depends on the OS/browser doing its own gravity
+    // removal via sensor fusion, which is exactly the kind of feature
+    // that's flaky or entirely absent on older/cheaper Android phones —
+    // this app's actual target hardware. So gravity removal is always
+    // done ourselves here, using only accelerationIncludingGravity, and
+    // event.acceleration is no longer trusted at all.
+    var raw = event.accelerationIncludingGravity;
     var accelMag = 0;
     if (raw && raw.x !== null) {
-      if (acc) {
-        accelMag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
-      } else {
-        // No gravity-free reading available on this platform — estimate
-        // and subtract a slow-moving gravity vector ourselves.
-        gravity.x = gravity.x * MOTION_GRAVITY_ALPHA + raw.x * (1 - MOTION_GRAVITY_ALPHA);
-        gravity.y = gravity.y * MOTION_GRAVITY_ALPHA + raw.y * (1 - MOTION_GRAVITY_ALPHA);
-        gravity.z = gravity.z * MOTION_GRAVITY_ALPHA + raw.z * (1 - MOTION_GRAVITY_ALPHA);
-        var lx = raw.x - gravity.x, ly = raw.y - gravity.y, lz = raw.z - gravity.z;
-        accelMag = Math.sqrt(lx * lx + ly * ly + lz * lz);
-      }
+      gravity.x = gravity.x * MOTION_GRAVITY_ALPHA + raw.x * (1 - MOTION_GRAVITY_ALPHA);
+      gravity.y = gravity.y * MOTION_GRAVITY_ALPHA + raw.y * (1 - MOTION_GRAVITY_ALPHA);
+      gravity.z = gravity.z * MOTION_GRAVITY_ALPHA + raw.z * (1 - MOTION_GRAVITY_ALPHA);
+      var lx = raw.x - gravity.x, ly = raw.y - gravity.y, lz = raw.z - gravity.z;
+      accelMag = Math.sqrt(lx * lx + ly * ly + lz * lz);
     }
 
     // Gyroscope (rotationRate) folded in alongside linear acceleration —
@@ -1416,7 +1429,7 @@ window.Visualizer = (function () {
         (now - lastHitAt) > MOTION_REFRACTORY_MS) {
       lastHitAt = now;
       var intensity = Math.max(0, Math.min(1, delta / MOTION_MAX_DELTA));
-      var velocity = Math.round(30 + intensity * 97);
+      var velocity = Math.round(55 + intensity * 72);
       var timbre = chooseTimbre(intensity);
 
       schedulePercHit(0, timbre, velocity);
