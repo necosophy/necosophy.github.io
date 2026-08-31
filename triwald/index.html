@@ -693,38 +693,103 @@ window.Visualizer = (function () {
     return buf;
   }
 
+  // A synthesized reverb impulse response (decaying filtered noise) —
+  // no IR file to fetch, so this still works fully offline. Used only
+  // by the bass voice's ambient wash, via a ConvolverNode.
+  function makeReverbImpulse(ctx, seconds, decay) {
+    var length = Math.max(1, Math.round(ctx.sampleRate * seconds));
+    var impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var data = impulse.getChannelData(ch);
+      for (var i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return impulse;
+  }
+
   function createEngine(ctx, destination) {
     var noiseBuffer = makeNoiseBuffer(ctx, 0.3);
     var bassVoice = null;
     var leadVoice = null;
 
+    // A shared reverb send for the bass voice only (lead/percussion
+    // stay dry and tight) — one ConvolverNode reused by every note
+    // rather than one per note, since convolution is comparatively
+    // expensive and every bass note sends into the same wash anyway.
+    var reverbConvolver = ctx.createConvolver();
+    reverbConvolver.buffer = makeReverbImpulse(ctx, 2.4, 2.2);
+    var reverbWet = ctx.createGain();
+    reverbWet.gain.value = 0.55;
+    reverbConvolver.connect(reverbWet);
+    reverbWet.connect(destination);
+
+    // Disconnecting every node once it's done playing matters more than
+    // it looks: leaving stopped-but-still-connected nodes in the graph
+    // is a known way to make Safari/WebKit's Web Audio implementation
+    // degrade and eventually go silent after enough of them pile up —
+    // which is exactly what "stops making sound after a few seconds of
+    // moving the phone" (lots of rapid-fire percussion hits) looks like.
+    function disconnectAll(nodes) {
+      nodes.forEach(function (n) { try { n.disconnect(); } catch (e) {} });
+    }
+
+    function stopBassVoice(v, time, fast) {
+      // A hard, fast cutoff for a retrigger (no long overlapping tail
+      // piling up), a slow ambient release for an actual note-off.
+      var releaseTime = fast ? 0.12 : 1.6;
+      v.gain.gain.cancelScheduledValues(time);
+      v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
+      v.gain.gain.linearRampToValueAtTime(0.0001, time + releaseTime);
+      var stopAt = time + releaseTime + 0.05;
+      var cleaned = false;
+      function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        disconnectAll([v.osc1, v.osc2, v.lfo, v.lfoGain, v.filter, v.gain]);
+      }
+      try { v.osc1.stop(stopAt); } catch (e) {}
+      try { v.osc2.stop(stopAt); } catch (e) {}
+      try { v.lfo.stop(stopAt); } catch (e) {}
+      v.osc1.onended = cleanup;
+    }
+
     function bassOn(note, velocity, time) {
       time = time || ctx.currentTime;
+      // Any still-ringing previous note is cut off immediately rather
+      // than left to overlap indefinitely — this is what keeps rapid
+      // retriggers (and their nodes) from piling up.
+      if (bassVoice) { stopBassVoice(bassVoice, time, true); bassVoice = null; }
+
       var freq = midiToFreq(note);
-      // A sawtooth rather than a sine: a small phone speaker plays back
-      // a raw low fundamental very weakly, but a harmonically rich wave
-      // puts real energy into the 500Hz-2kHz band the speaker actually
-      // projects, which is what the ear uses to perceive the pitch as
-      // present/loud even though the fundamental itself is faint.
+      // Soft ambient pad, not a "bass" tone: two gently detuned
+      // triangles (no harsh sawtooth edge) through a slow-breathing
+      // lowpass filter, with a long attack/release and a reverb send.
       var osc1 = ctx.createOscillator();
-      osc1.type = 'sawtooth';
+      osc1.type = 'triangle';
       osc1.frequency.setValueAtTime(freq, time);
-      // A detuned unison in the SAME octave (not a sub-octave) for
-      // thickness/beating — a sub-oscillator an octave down would push
-      // energy right back into the range a phone speaker can't play.
       var osc2 = ctx.createOscillator();
-      osc2.type = 'sawtooth';
+      osc2.type = 'triangle';
       osc2.frequency.setValueAtTime(freq, time);
-      osc2.detune.setValueAtTime(9, time);
+      osc2.detune.setValueAtTime(8, time);
 
       var filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2400, time);
-      filter.Q.value = 0.7;
+      filter.frequency.setValueAtTime(1500, time);
+      filter.Q.value = 0.6;
+
+      // A slow LFO breathing the cutoff gives the pad ambient movement
+      // instead of a static held tone.
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.1 + Math.random() * 0.08;
+      var lfoGain = ctx.createGain();
+      lfoGain.gain.value = 260;
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
 
       var gainNode = ctx.createGain();
-      var peak = Math.min(0.45, 0.18 + (velocity / 127) * 0.27);
-      var attack = 0.6;
+      var peak = Math.min(0.4, 0.16 + (velocity / 127) * 0.22);
+      var attack = 0.9;
       gainNode.gain.setValueAtTime(0, time);
       gainNode.gain.linearRampToValueAtTime(peak, time + attack);
 
@@ -732,10 +797,13 @@ window.Visualizer = (function () {
       osc2.connect(filter);
       filter.connect(gainNode);
       gainNode.connect(destination);
+      gainNode.connect(reverbConvolver);
+
       osc1.start(time);
       osc2.start(time);
+      lfo.start(time);
 
-      bassVoice = { osc1: osc1, osc2: osc2, gain: gainNode };
+      bassVoice = { osc1: osc1, osc2: osc2, lfo: lfo, lfoGain: lfoGain, filter: filter, gain: gainNode };
     }
 
     function bassOff(time) {
@@ -743,17 +811,29 @@ window.Visualizer = (function () {
       if (!bassVoice) return;
       var v = bassVoice;
       bassVoice = null;
-      var release = 1.4;
+      stopBassVoice(v, time, false);
+    }
+
+    function stopLeadVoice(v, time, fast) {
+      var releaseTime = fast ? 0.03 : 0.18;
       v.gain.gain.cancelScheduledValues(time);
       v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
-      v.gain.gain.linearRampToValueAtTime(0.0001, time + release);
-      var stopAt = time + release + 0.1;
-      try { v.osc1.stop(stopAt); } catch (e) {}
-      try { v.osc2.stop(stopAt); } catch (e) {}
+      v.gain.gain.linearRampToValueAtTime(0.0001, time + releaseTime);
+      var stopAt = time + releaseTime + 0.03;
+      var cleaned = false;
+      function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        disconnectAll([v.osc, v.filter, v.gain]);
+      }
+      try { v.osc.stop(stopAt); } catch (e) {}
+      v.osc.onended = cleanup;
     }
 
     function leadOn(note, velocity, time) {
       time = time || ctx.currentTime;
+      if (leadVoice) { stopLeadVoice(leadVoice, time, true); leadVoice = null; }
+
       var freq = midiToFreq(note);
       var osc = ctx.createOscillator();
       osc.type = 'triangle';
@@ -775,7 +855,7 @@ window.Visualizer = (function () {
       gainNode.connect(destination);
       osc.start(time);
 
-      leadVoice = { osc: osc, gain: gainNode };
+      leadVoice = { osc: osc, filter: filter, gain: gainNode };
     }
 
     function leadOff(time) {
@@ -783,12 +863,7 @@ window.Visualizer = (function () {
       if (!leadVoice) return;
       var v = leadVoice;
       leadVoice = null;
-      var release = 0.18;
-      v.gain.gain.cancelScheduledValues(time);
-      v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
-      v.gain.gain.linearRampToValueAtTime(0.0001, time + release);
-      var stopAt = time + release + 0.05;
-      try { v.osc.stop(stopAt); } catch (e) {}
+      stopLeadVoice(v, time, false);
     }
 
     // Three woody/natural one-shots, synthesized (no samples): a
@@ -818,6 +893,7 @@ window.Visualizer = (function () {
         src.connect(bp);
         bp.connect(g);
         g.connect(destination);
+        src.onended = function () { disconnectAll([src, bp, g]); };
         src.start(time);
         src.stop(time + dur + 0.02);
       } else if (timbre === 'clave') {
@@ -830,6 +906,7 @@ window.Visualizer = (function () {
         og.gain.exponentialRampToValueAtTime(0.0008, time + 0.09);
         osc.connect(og);
         og.connect(destination);
+        osc.onended = function () { disconnectAll([osc, og]); };
         osc.start(time);
         osc.stop(time + 0.11);
 
@@ -844,6 +921,7 @@ window.Visualizer = (function () {
         tsrc.connect(thp);
         thp.connect(tg);
         tg.connect(destination);
+        tsrc.onended = function () { disconnectAll([tsrc, thp, tg]); };
         tsrc.start(time);
         tsrc.stop(time + 0.03);
       } else { // 'woodblock' default
@@ -859,6 +937,7 @@ window.Visualizer = (function () {
         nsrc.connect(nbp);
         nbp.connect(ng);
         ng.connect(destination);
+        nsrc.onended = function () { disconnectAll([nsrc, nbp, ng]); };
         nsrc.start(time);
         nsrc.stop(time + 0.1);
 
@@ -870,6 +949,7 @@ window.Visualizer = (function () {
         bg.gain.exponentialRampToValueAtTime(0.0008, time + 0.09);
         bosc.connect(bg);
         bg.connect(destination);
+        bosc.onended = function () { disconnectAll([bosc, bg]); };
         bosc.start(time);
         bosc.stop(time + 0.1);
       }
@@ -990,8 +1070,17 @@ window.Visualizer = (function () {
   var currentBassNote = null;
   var bassActive = false;
 
+  // bassOn() itself hard-cuts any still-ringing previous note (see
+  // stopBassVoice's "fast" path in createEngine) — called directly for
+  // a retrigger, so the old note is cut immediately instead of left to
+  // overlap through its long ambient release. bassNoteOff() (the slow,
+  // reverb-tailed release) is reserved for when the voice is actually
+  // turned off.
   function bassNoteOn(note) {
     var now = performance.now();
+    if (currentBassNote !== null && recording) {
+      logEvent(now - recordStartPerf, 0x8, 'bass', currentBassNote, 0);
+    }
     if (liveEngine) liveEngine.bassOn(note, BASS_VELOCITY);
     if (recording) logEvent(now - recordStartPerf, 0x9, 'bass', note, BASS_VELOCITY);
     currentBassNote = note;
@@ -1039,7 +1128,9 @@ window.Visualizer = (function () {
       lightLastChangeAt = now;
       Visualizer.trigger('bass', idx / Math.max(1, bassNotes.length - 1), 0.5);
     } else if (targetNote !== currentBassNote && stableLongEnough && heldLongEnough) {
-      bassNoteOff();
+      // A retrigger, not a real note-off — bassNoteOn's own hard-cut
+      // (via the engine) stops the previous note immediately rather
+      // than the two of them crossfading through a 1.6s release.
       bassNoteOn(targetNote);
       lightLastChangeAt = now;
       Visualizer.trigger('bass', idx / Math.max(1, bassNotes.length - 1), 0.5);
@@ -1097,16 +1188,21 @@ window.Visualizer = (function () {
 
   var MIC_FFT_SIZE = 1024;
   var MIC_MIN_PROCESS_MS = 33; // throttle to ~30fps regardless of rAF rate
-  var MIC_MIN_RMS = 0.035;         // hard floor regardless of ambient noise
+  // The hard floor was dominating over the adaptive noise floor in any
+  // normal (quiet-ish) room, which is what made this need something
+  // close to shouting to trigger at all — dropped substantially, and
+  // now leans on the adaptive floor + hysteresis (see micProcess) to
+  // reject ambient noise instead of a conservative fixed minimum.
+  var MIC_MIN_RMS = 0.01;
   var MIC_NOISE_ADAPT_UP = 0.995;  // floor rises slowly to track louder ambient noise
   var MIC_NOISE_ADAPT_DOWN = 0.9;  // floor falls quickly once the room goes quiet
-  var MIC_ON_MULT = 3.2;   // margin over the floor required to START a note
-  var MIC_OFF_MULT = 1.6;  // margin required to KEEP one held (hysteresis)
-  var MIC_CORR_CONFIDENCE = 0.5;
+  var MIC_ON_MULT = 2.0;   // margin over the floor required to START a note
+  var MIC_OFF_MULT = 1.3;  // margin required to KEEP one held (hysteresis)
+  var MIC_CORR_CONFIDENCE = 0.4;
   var MIC_RELEASE_HANG_MS = 180;
   var MIC_STABLE_FRAMES = 2;
   var MIC_MIN_FREQ = 70, MIC_MAX_FREQ = 1200;
-  var MIC_PEAK_RMS = 0.35;
+  var MIC_PEAK_RMS = 0.22; // normal speaking/humming volume should read as near-full level, not just a sliver
 
   var micStream = null;
   var micSourceNode = null;
@@ -1318,10 +1414,10 @@ window.Visualizer = (function () {
 
   var MOTION_GRAVITY_ALPHA = 0.9;
   var MOTION_NOISE_ALPHA = 0.97;
-  var MOTION_THRESH_MULT = 1.25;
-  var MOTION_MIN_THRESH = 0.18;
-  var MOTION_REFRACTORY_MS = 90;
-  var MOTION_MAX_DELTA = 6;
+  var MOTION_THRESH_MULT = 1.1;
+  var MOTION_MIN_THRESH = 0.12;
+  var MOTION_REFRACTORY_MS = 70;
+  var MOTION_MAX_DELTA = 5;
   var ROTATION_WEIGHT = 0.08; // deg/s -> comparable scale to m/s^2 acceleration
   var PERC_HIT_DUR_MS = 55;
 
@@ -1726,7 +1822,7 @@ window.Visualizer = (function () {
 
   function renderWavBlob() {
     var sampleRate = (audioCtx && audioCtx.sampleRate) || 44100;
-    var tailSec = 2.5;
+    var tailSec = 4.5; // bass release (~1.6s) plus its reverb tail (~2.4s)
     var durationSec = Math.max(0.5, recordedDurationMs / 1000 + tailSec);
     var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     var offlineCtx = new OfflineCtx(2, Math.ceil(sampleRate * durationSec), sampleRate);
