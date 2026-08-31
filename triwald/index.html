@@ -2028,6 +2028,17 @@ window.Visualizer = (function () {
 // Registered after load so it never competes with the app's own startup
 // (sensor permission prompts, audio init) for the main thread on first paint.
 if ('serviceWorker' in navigator) {
+  // Without this, a deploy that changes index.html but not sw.js itself
+  // (byte-identical service worker script) never gets picked up by an
+  // already-installed client — cache-first means it keeps serving
+  // whatever was cached the first time the app was ever loaded,
+  // indefinitely, regardless of how many times the site is redeployed.
+  // Reloading once when a new service worker actually takes control
+  // (which only happens on a real sw.js change, e.g. a bumped
+  // CACHE_NAME) closes that gap without needing a manual hard refresh.
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    window.location.reload();
+  });
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   });
