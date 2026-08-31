@@ -55,6 +55,21 @@ scale entirely.
    downloads it as a `.wav`. Both try the device's native share sheet first
    and fall back to a normal download.
 
+## Getting updates
+
+This is a PWA with an offline-first (cache-first) service worker (`sw.js`),
+which means an already-loaded copy will keep serving whatever it has cached
+until the service worker script itself changes — a browser only checks the
+service worker for updates by diffing its bytes, so a deploy that only
+changes `index.html` doesn't get picked up on its own. Every deploy that
+should reach existing installs **must bump `CACHE_NAME` in `sw.js`** (there's
+a comment there as a reminder). Once that happens, the page also
+auto-reloads itself the next time it's opened, to pick up the new cache
+immediately rather than needing a manual hard refresh. If a change still
+doesn't seem to be live, fully closing and reopening the tab/installed app
+once (rather than just leaving it in the background) is the most reliable
+way to let that update cycle run.
+
 ## Technical notes
 
 - Vanilla HTML/CSS/JS, no build step, no framework — same approach as its
@@ -185,6 +200,16 @@ Three rounds of on-device feedback have gone into fixes so far:
   ring out after its trigger ends); a retrigger still relies on the same
   internal hard-cut fix the bass voice got, so rapid retriggers don't
   overlap into a pileup either.
+
+- **`sw.js`'s `CACHE_NAME` had never been bumped across five rounds of
+  fixes** — every prior deploy changed `index.html` but not `sw.js` itself,
+  so an already-loaded install had no way to notice anything had changed and
+  kept serving the very first cached copy of the app indefinitely (see
+  "Getting updates" above). This is the most likely reason at least some
+  earlier on-device feedback described behavior from a version of the code
+  that had already been fixed. Bumped now, and a `controllerchange` listener
+  was added so this can't silently happen again — future deploys just need
+  the `CACHE_NAME` bump, and clients pick them up automatically on next open.
 
 Given the wide range of phone speakers, mic hardware, and accelerometer/
 gyroscope behavior across Android devices, further tuning may still be needed
