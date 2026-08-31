@@ -34,6 +34,14 @@ scale entirely.
   explicit tap.
 - No camera/mic/motion hardware, or a denied permission, simply leaves that
   one voice unavailable; the other two still work.
+- If a sensor row shows **"blocked — check site settings"** without ever
+  showing a permission prompt, the browser has permanently denied that
+  permission for this site already (commonly from a single accidental
+  "Don't Allow" tap) — no amount of tapping the row again can undo that from
+  inside the page; only the browser's own site settings can. On iOS Safari:
+  tap the "aA" icon in the address bar → **Website Settings**, and change
+  Camera/Microphone from Deny to Ask or Allow, then reload. On Android
+  Chrome: tap the padlock/info icon in the address bar → **Permissions**.
 
 ## Using it
 
@@ -98,9 +106,10 @@ way to let that update cycle run.
   so it stays cheap on old hardware, with a first-strong-peak search rather
   than a global-max one to avoid picking an octave-down subharmonic), but
   what it triggers is a long 808-style kick rather than a sustained lead
-  tone: a sine oscillator's pitch drops fast from 5x the target frequency
-  down to it (~45ms, the "knock"), then rings out at that pitch through a
-  soft-clip waveshaper for drive (a 1.1–1.8s decay depending on velocity —
+  tone: a sine oscillator's pitch drops from 2.6x the target frequency down
+  to it (~70ms, the "knock"), then rings out at that pitch (tuned to
+  E1–A2, ~41–110Hz — genuine kick territory) through a gently soft-clipped
+  waveshaper for a little drive (a 1.1–1.8s decay depending on velocity —
   the "bass" tail), with a short filtered-noise click layered on the attack
   for extra percussive definition. Each detected onset triggers one
   self-contained hit — the kick decays on its own regardless of how long the
@@ -210,6 +219,24 @@ Three rounds of on-device feedback have gone into fixes so far:
   that had already been fixed. Bumped now, and a `controllerchange` listener
   was added so this can't silently happen again — future deploys just need
   the `CACHE_NAME` bump, and clients pick them up automatically on next open.
+
+- **The kick sounded too high and "plucky"** — its A2–E4 register (from the
+  round that introduced it) still read as a bright tone rather than a kick,
+  and the pitch-drop synthesizing the knock (5x the target frequency down to
+  it in 45ms, through a fairly strong soft-clip drive) added a twangy edge
+  on top. Dropped the register to genuine 808 tuning (E1–A2, ~41–110Hz),
+  softened the pitch drop (2.6x over 70ms instead of 5x over 45ms), reduced
+  the waveshaper drive amount, and toned down the attack click — aiming for
+  a rounder thump instead of a twang.
+- **iOS camera showing "blocked" without ever prompting**: not a code bug —
+  once a browser has permanently denied a permission for a site, it rejects
+  every future `getUserMedia()` call immediately, with no prompt and no way
+  for the page to force one; this is standard browser security behavior on
+  both iOS Safari and Android Chrome, not something JS can override. Added
+  error-specific hints instead of a generic "blocked — retry" (see
+  Requirements above for how to actually clear it from the browser's own
+  settings), so it's at least clear that retrying in-page won't help for
+  this particular case.
 
 Given the wide range of phone speakers, mic hardware, and accelerometer/
 gyroscope behavior across Android devices, further tuning may still be needed
