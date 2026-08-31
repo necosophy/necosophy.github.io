@@ -605,7 +605,11 @@ window.Visualizer = (function () {
   };
   var MODE_ORDER = ['minor', 'major', 'dorian', 'harmonic minor', 'minor pentatonic', 'major pentatonic'];
 
-  var BASS_LOW = 36, BASS_HIGH = 55;   // C2..G3, slow sustained register
+  // C3..G4 rather than C2..G3 — old/small phone speakers roll off hard
+  // below ~150-200Hz, so a "bass" register that actually sits below
+  // that (as this did at 36-55/C2-G3) is nearly inaudible without an
+  // external speaker or headphones no matter how loud it's mixed.
+  var BASS_LOW = 48, BASS_HIGH = 67;
   var LEAD_LOW = 60, LEAD_HIGH = 84;   // C4..C6, mic pitch-tracking range
 
   var scaleRootEl = document.getElementById('scale-root');
@@ -696,18 +700,21 @@ window.Visualizer = (function () {
       var osc1 = ctx.createOscillator();
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(freq, time);
+      // A detuned unison in the SAME octave (not a sub-octave) for
+      // thickness/beating — a sub-oscillator an octave down would push
+      // energy right back into the range a phone speaker can't play.
       var osc2 = ctx.createOscillator();
       osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(freq / 2, time); // sub-octave for body
-      osc2.detune.setValueAtTime(4, time);
+      osc2.frequency.setValueAtTime(freq, time);
+      osc2.detune.setValueAtTime(7, time);
 
       var filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(700, time);
+      filter.frequency.setValueAtTime(1600, time);
       filter.Q.value = 0.7;
 
       var gainNode = ctx.createGain();
-      var peak = Math.min(0.22, 0.06 + (velocity / 127) * 0.16);
+      var peak = Math.min(0.4, 0.14 + (velocity / 127) * 0.26);
       var attack = 0.7;
       gainNode.gain.setValueAtTime(0, time);
       gainNode.gain.linearRampToValueAtTime(peak, time + attack);
@@ -956,7 +963,7 @@ window.Visualizer = (function () {
   var LIGHT_SMOOTH_ALPHA = 0.12;   // EMA weight for each new raw sample
   var LIGHT_STABLE_MS = 900;       // candidate index must hold this long
   var LIGHT_MIN_HOLD_MS = 1800;    // minimum time between actual note changes
-  var BASS_VELOCITY = 80;
+  var BASS_VELOCITY = 105;
 
   var lightStream = null;
   var lightVideo = null;
@@ -1077,9 +1084,12 @@ window.Visualizer = (function () {
 
   var MIC_FFT_SIZE = 1024;
   var MIC_MIN_PROCESS_MS = 33; // throttle to ~30fps regardless of rAF rate
-  var MIC_MIN_RMS = 0.02;
-  var MIC_NOISE_ADAPT = 0.98;
-  var MIC_CORR_CONFIDENCE = 0.35;
+  var MIC_MIN_RMS = 0.035;         // hard floor regardless of ambient noise
+  var MIC_NOISE_ADAPT_UP = 0.995;  // floor rises slowly to track louder ambient noise
+  var MIC_NOISE_ADAPT_DOWN = 0.9;  // floor falls quickly once the room goes quiet
+  var MIC_ON_MULT = 3.2;   // margin over the floor required to START a note
+  var MIC_OFF_MULT = 1.6;  // margin required to KEEP one held (hysteresis)
+  var MIC_CORR_CONFIDENCE = 0.5;
   var MIC_RELEASE_HANG_MS = 180;
   var MIC_STABLE_FRAMES = 2;
   var MIC_MIN_FREQ = 70, MIC_MAX_FREQ = 1200;
@@ -1185,11 +1195,31 @@ window.Visualizer = (function () {
     rms = Math.sqrt(rms / micBuf.length);
 
     var now = performance.now();
-    var gateOpen = rms > Math.max(MIC_MIN_RMS, micNoiseFloor * 2.2);
+
+    // Noise floor adapts continuously — not only while the gate is
+    // closed — asymmetrically: it drops quickly toward a quieter room
+    // but only creeps up slowly toward louder ambient noise. Gating the
+    // adaptation on "gate closed" (as this used to) meant a room whose
+    // self-noise/hum sat above the fixed threshold (echoCancellation and
+    // noiseSuppression are deliberately off, for cleaner pitch tracking)
+    // left the floor stuck low and the gate permanently open, which is
+    // what made the lead voice hold a phantom tone through real silence.
+    if (rms < micNoiseFloor) micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT_DOWN + rms * (1 - MIC_NOISE_ADAPT_DOWN);
+    else micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT_UP + rms * (1 - MIC_NOISE_ADAPT_UP);
+
+    var levelFrac = Math.min(1, rms / MIC_PEAK_RMS);
+    Visualizer.setLevel('lead', levelFrac);
+
+    // Schmitt-trigger gate: starting a new note needs a clearly stronger
+    // onset than merely holding one already sounding, so a note that's
+    // singing doesn't get cut by small natural dips, while noise alone
+    // can't kick off a new one as easily.
+    var threshold = currentLeadNote !== null
+      ? Math.max(MIC_MIN_RMS * 0.7, micNoiseFloor * MIC_OFF_MULT)
+      : Math.max(MIC_MIN_RMS, micNoiseFloor * MIC_ON_MULT);
+    var gateOpen = rms > threshold;
 
     if (!gateOpen) {
-      micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT + rms * (1 - MIC_NOISE_ADAPT);
-      Visualizer.setLevel('lead', Math.min(1, rms / MIC_PEAK_RMS));
       if (currentLeadNote !== null) {
         if (!micBelowSince) micBelowSince = now;
         else if (now - micBelowSince > MIC_RELEASE_HANG_MS) { leadNoteOff(); micBelowSince = 0; micPendingNote = null; micPendingCount = 0; }
@@ -1199,9 +1229,6 @@ window.Visualizer = (function () {
 
     micBelowSince = 0;
     var freq = detectPitch(micBuf, micAnalyser.context.sampleRate);
-    var levelFrac = Math.min(1, rms / MIC_PEAK_RMS);
-    Visualizer.setLevel('lead', levelFrac);
-
     if (freq <= 0) return;
 
     var midiFloat = 69 + 12 * Math.log(freq / 440) / Math.LN2;
@@ -1278,16 +1305,17 @@ window.Visualizer = (function () {
 
   var MOTION_GRAVITY_ALPHA = 0.9;
   var MOTION_NOISE_ALPHA = 0.97;
-  var MOTION_THRESH_MULT = 2.2;
-  var MOTION_MIN_THRESH = 1.0;
+  var MOTION_THRESH_MULT = 1.5;
+  var MOTION_MIN_THRESH = 0.35;
   var MOTION_REFRACTORY_MS = 90;
-  var MOTION_MAX_DELTA = 18;
+  var MOTION_MAX_DELTA = 10;
+  var ROTATION_WEIGHT = 0.045; // deg/s -> comparable scale to m/s^2 acceleration
   var PERC_HIT_DUR_MS = 55;
 
   var motionActive = false;
   var motionHandler = null;
   var gravity = { x: 0, y: 0, z: 0 };
-  var motionNoiseFloor = 0.5;
+  var motionNoiseFloor = 0.3;
   var lastHitAt = 0;
   var percQueue = []; // { audioTime, tsMs, timbre, velocity }
   var percDrainInterval = null;
@@ -1348,20 +1376,36 @@ window.Visualizer = (function () {
   function onDeviceMotion(event) {
     var acc = event.acceleration && (event.acceleration.x !== null) ? event.acceleration : null;
     var raw = acc || event.accelerationIncludingGravity;
-    if (!raw || raw.x === null) return;
 
-    var mag;
-    if (acc) {
-      mag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
-    } else {
-      // No gravity-free reading available on this platform — estimate
-      // and subtract a slow-moving gravity vector ourselves.
-      gravity.x = gravity.x * MOTION_GRAVITY_ALPHA + raw.x * (1 - MOTION_GRAVITY_ALPHA);
-      gravity.y = gravity.y * MOTION_GRAVITY_ALPHA + raw.y * (1 - MOTION_GRAVITY_ALPHA);
-      gravity.z = gravity.z * MOTION_GRAVITY_ALPHA + raw.z * (1 - MOTION_GRAVITY_ALPHA);
-      var lx = raw.x - gravity.x, ly = raw.y - gravity.y, lz = raw.z - gravity.z;
-      mag = Math.sqrt(lx * lx + ly * ly + lz * lz);
+    var accelMag = 0;
+    if (raw && raw.x !== null) {
+      if (acc) {
+        accelMag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+      } else {
+        // No gravity-free reading available on this platform — estimate
+        // and subtract a slow-moving gravity vector ourselves.
+        gravity.x = gravity.x * MOTION_GRAVITY_ALPHA + raw.x * (1 - MOTION_GRAVITY_ALPHA);
+        gravity.y = gravity.y * MOTION_GRAVITY_ALPHA + raw.y * (1 - MOTION_GRAVITY_ALPHA);
+        gravity.z = gravity.z * MOTION_GRAVITY_ALPHA + raw.z * (1 - MOTION_GRAVITY_ALPHA);
+        var lx = raw.x - gravity.x, ly = raw.y - gravity.y, lz = raw.z - gravity.z;
+        accelMag = Math.sqrt(lx * lx + ly * ly + lz * lz);
+      }
     }
+
+    // Gyroscope (rotationRate) folded in alongside linear acceleration —
+    // devicemotion carries both from the same permission/event, no extra
+    // request needed. This is what makes small in-hand tilts and twists
+    // register as hits, not just literal shakes: a still phone rotated
+    // gently produces almost no accelerometer signal but a clear
+    // rotationRate one.
+    var rot = event.rotationRate;
+    var rotMag = (rot && rot.alpha !== null)
+      ? Math.sqrt(rot.alpha * rot.alpha + rot.beta * rot.beta + rot.gamma * rot.gamma)
+      : 0;
+
+    if (!raw && !rot) return;
+
+    var mag = accelMag + rotMag * ROTATION_WEIGHT;
 
     motionNoiseFloor = motionNoiseFloor * MOTION_NOISE_ALPHA + mag * (1 - MOTION_NOISE_ALPHA);
     Visualizer.setLevel('perc', Math.min(1, mag / (MOTION_MAX_DELTA * 0.6)));
@@ -1402,6 +1446,8 @@ window.Visualizer = (function () {
     motionHandler = onDeviceMotion;
     window.addEventListener('devicemotion', motionHandler);
     motionActive = true;
+    motionNoiseFloor = 0.3;
+    gravity = { x: 0, y: 0, z: 0 };
     percDrainInterval = setInterval(drainPercQueue, 25);
     setRowState('perc', true, 'tap to disable', false);
   }
