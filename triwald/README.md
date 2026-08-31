@@ -213,6 +213,22 @@ into fixes; the notes below cover what's still relevant to the current code.
   elsewhere) instead of a generic "blocked — retry" that implies retrying
   might help when for that case it fundamentally can't (see Requirements
   above for how to actually clear it from the browser's own settings).
+- **All sound went silent on an iPhone once the mic-driven voice was
+  removed.** Requesting microphone access has a well-known unplanned side
+  effect on iOS Safari: it switches the page's whole audio session category
+  to one that isn't silenced by the phone's physical mute/ring switch, which
+  plain `AudioContext` output otherwise can be even while
+  `audioCtx.state === "running"`. The old mic voice had been quietly relying
+  on that as a side effect; removing it removed the workaround along with
+  it. Fixed properly rather than re-adding a hidden mic request purely for
+  its side effect (which would mean asking for a permission with no visible
+  feature behind it, and would likely trigger iOS's recording indicator for
+  no visible reason): on iOS specifically, `AudioContext` output is now
+  routed through a real hidden `<audio>` element via
+  `createMediaStreamDestination()` instead of straight to
+  `audioCtx.destination` — actual media element playback uses a category
+  that isn't affected by the mute switch. Android/desktop are unaffected by
+  this issue and keep the direct, lower-latency routing.
 - **`sw.js`'s `CACHE_NAME` had gone several rounds without being bumped** —
   deploys that only changed `index.html` never reached already-loaded
   installs, since a service worker only gets checked for updates by

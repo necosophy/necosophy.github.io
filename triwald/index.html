@@ -381,6 +381,10 @@
 </head>
 <body>
 
+<!-- Hidden sink for routing AudioContext output through a real media
+     element on iOS — see initAudio() for why. -->
+<audio id="audio-sink" playsinline style="display:none"></audio>
+
 <header>
   <div class="wordmark">Triwald</div>
   <svg id="triwald-mark" viewBox="0 0 100 100" aria-hidden="true">
@@ -1005,6 +1009,13 @@ window.Visualizer = (function () {
   var masterGain = null;
   var liveEngine = null;
 
+  // iPhone/iPad only (including iPadOS 13+, which reports as a Mac but
+  // exposes multi-touch) — this works around an iOS Safari-specific
+  // quirk, not a general one, so Android/desktop keep the lower-latency
+  // path below rather than paying for a workaround they don't need.
+  var isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   function initAudio() {
     if (audioCtx) return;
     var AC = window.AudioContext || window.webkitAudioContext;
@@ -1012,7 +1023,28 @@ window.Visualizer = (function () {
     audioCtx = new AC();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0.85;
-    masterGain.connect(audioCtx.destination);
+
+    // On iOS, plain AudioContext output (masterGain -> destination) is
+    // known to be silenced by the phone's physical mute/ring switch on
+    // some versions, even while audioCtx.state is "running" — sound
+    // played through an actual <audio>/<video> element usually isn't,
+    // since it uses a different playback category. Routing through a
+    // MediaStreamDestination into a hidden <audio> element gets that
+    // for free, with no extra permission (unlike the alternative fix of
+    // grabbing a getUserMedia mic stream purely to flip iOS's audio
+    // session category, which is what enabling the old mic-driven voice
+    // used to do as an unplanned side effect). This adds a little
+    // output latency, which is why it's iOS-only rather than universal.
+    var sink = isIOS ? document.getElementById('audio-sink') : null;
+    if (sink && audioCtx.createMediaStreamDestination) {
+      var sinkDest = audioCtx.createMediaStreamDestination();
+      masterGain.connect(sinkDest);
+      sink.srcObject = sinkDest.stream;
+      sink.play().catch(function () {});
+    } else {
+      masterGain.connect(audioCtx.destination);
+    }
+
     liveEngine = createEngine(audioCtx, masterGain);
   }
 
