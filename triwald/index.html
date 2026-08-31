@@ -380,7 +380,7 @@
     </div>
     <div class="sensor-row" id="row-lead" data-voice="lead">
       <span class="dot"></span>
-      <span class="label">Mic &rarr; Lead</span>
+      <span class="label">Mic &rarr; Kick</span>
       <span class="hint">tap to enable</span>
     </div>
     <div class="sensor-row" id="row-perc" data-voice="perc">
@@ -614,7 +614,12 @@ window.Visualizer = (function () {
   // in a low register. It's told apart from the lead by that envelope
   // and timbre, not by pitch range alone.
   var BASS_LOW = 60, BASS_HIGH = 79;
-  var LEAD_LOW = 60, LEAD_HIGH = 84;   // C4..C6, mic pitch-tracking range
+  // A2..E4 — deep enough to feel like a kick's "bass" tail while
+  // staying mostly above the ~100-150Hz floor a phone speaker can
+  // actually reproduce (the same lesson the bass voice's register
+  // learned the hard way). Also keeps this voice out of the bass pad's
+  // own register (60-79) for a cleaner mix between the two.
+  var LEAD_LOW = 45, LEAD_HIGH = 64;
 
   var scaleRootEl = document.getElementById('scale-root');
   var scaleModeEl = document.getElementById('scale-mode');
@@ -708,8 +713,22 @@ window.Visualizer = (function () {
     return impulse;
   }
 
+  // A normalized soft-clip (tanh) curve for a WaveShaperNode — cheap way
+  // to give the mic voice's kick body a bit of 808-style drive/grit.
+  function makeDriveCurve(amount) {
+    var n = 1024;
+    var curve = new Float32Array(n);
+    var norm = Math.tanh(amount);
+    for (var i = 0; i < n; i++) {
+      var x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(amount * x) / norm;
+    }
+    return curve;
+  }
+
   function createEngine(ctx, destination) {
     var noiseBuffer = makeNoiseBuffer(ctx, 0.3);
+    var kickDriveCurve = makeDriveCurve(2.5);
     var bassVoice = null;
     var leadVoice = null;
 
@@ -815,7 +834,7 @@ window.Visualizer = (function () {
     }
 
     function stopLeadVoice(v, time, fast) {
-      var releaseTime = fast ? 0.03 : 0.18;
+      var releaseTime = fast ? 0.05 : 0.18;
       v.gain.gain.cancelScheduledValues(time);
       v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
       v.gain.gain.linearRampToValueAtTime(0.0001, time + releaseTime);
@@ -830,32 +849,71 @@ window.Visualizer = (function () {
       v.osc.onended = cleanup;
     }
 
+    // Mic voice: a long 808-style kick rather than a sustained lead — a
+    // fast pitch drop for the "knock" transient, a soft-clipped sine
+    // body ringing out at the detected/quantized pitch for the bass
+    // tail, and a short filtered-noise click layered on the attack.
+    // Triggered once per detected onset; see leadNoteOn/leadNoteOff in
+    // the app code below — this voice's decay is no longer tied to how
+    // long the mic keeps picking up sound, so it rings out on its own.
     function leadOn(note, velocity, time) {
       time = time || ctx.currentTime;
       if (leadVoice) { stopLeadVoice(leadVoice, time, true); leadVoice = null; }
 
       var freq = midiToFreq(note);
-      var osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, time);
+      var vel = velocity / 127;
+      var decay = 1.1 + vel * 0.7;
 
-      var filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2600, time);
-      filter.Q.value = 1.2;
+      var osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * 5, time);
+      osc.frequency.exponentialRampToValueAtTime(freq, time + 0.045);
+
+      var drive = ctx.createWaveShaper();
+      drive.curve = kickDriveCurve;
+      drive.oversample = '2x';
 
       var gainNode = ctx.createGain();
-      var peak = Math.min(0.24, 0.05 + (velocity / 127) * 0.2);
-      var attack = 0.02;
+      var peak = Math.min(0.55, 0.24 + vel * 0.28);
       gainNode.gain.setValueAtTime(0, time);
-      gainNode.gain.linearRampToValueAtTime(peak, time + attack);
+      gainNode.gain.linearRampToValueAtTime(peak, time + 0.004);
+      gainNode.gain.exponentialRampToValueAtTime(0.0006, time + decay);
 
-      osc.connect(filter);
-      filter.connect(gainNode);
+      osc.connect(drive);
+      drive.connect(gainNode);
       gainNode.connect(destination);
-      osc.start(time);
 
-      leadVoice = { osc: osc, filter: filter, gain: gainNode };
+      // A short high-passed noise click on the attack for the
+      // percussive "knock" — self-contained and short enough (~30ms)
+      // that it doesn't need to be part of the tracked/cuttable voice.
+      var knock = ctx.createBufferSource();
+      knock.buffer = noiseBuffer;
+      var knockFilter = ctx.createBiquadFilter();
+      knockFilter.type = 'highpass';
+      knockFilter.frequency.value = 1200;
+      var knockGain = ctx.createGain();
+      var knockPeak = Math.min(0.4, 0.15 + vel * 0.2);
+      knockGain.gain.setValueAtTime(knockPeak, time);
+      knockGain.gain.exponentialRampToValueAtTime(0.0006, time + 0.02);
+      knock.connect(knockFilter);
+      knockFilter.connect(knockGain);
+      knockGain.connect(destination);
+      knock.onended = function () { disconnectAll([knock, knockFilter, knockGain]); };
+      knock.start(time);
+      knock.stop(time + 0.03);
+
+      var stopAt = time + decay + 0.05;
+      var cleaned = false;
+      function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        disconnectAll([osc, drive, gainNode]);
+      }
+      osc.onended = cleanup;
+      osc.start(time);
+      osc.stop(stopAt);
+
+      leadVoice = { osc: osc, filter: drive, gain: gainNode };
     }
 
     function leadOff(time) {
@@ -1182,8 +1240,10 @@ window.Visualizer = (function () {
   });
 
   // ---------------------------------------------------------------
-  // Voice 2 — Microphone -> Lead. Pitch/amplitude tracked, monophonic,
-  // the most reactive voice.
+  // Voice 2 — Microphone -> Kick (808-style). Pitch/amplitude tracked,
+  // monophonic, the most reactive voice. Internal identifiers below
+  // still say "lead" (unrenamed to keep this change low-risk) — this is
+  // the same mic voice, just a different instrument on top of it.
   // ---------------------------------------------------------------
 
   var MIC_FFT_SIZE = 1024;
@@ -1217,19 +1277,30 @@ window.Visualizer = (function () {
   var micPendingCount = 0;
   var currentLeadNote = null;
 
+  var KICK_LOG_DURATION_MS = 900; // for MIDI export only — the audio rings out on its own decay, not this
+
+  // The kick is a one-shot, self-decaying hit — logged immediately as
+  // a paired on/off event (like percussion), since its duration isn't
+  // tied to how long the mic keeps picking up sound. A retrigger calls
+  // this directly and relies on leadOn's own internal hard-cut (see
+  // stopLeadVoice in createEngine) rather than an explicit leadNoteOff
+  // first — same fix as the bass voice's retrigger got.
   function leadNoteOn(note, velocity) {
     var now = performance.now();
     if (liveEngine) liveEngine.leadOn(note, velocity);
-    if (recording) logEvent(now - recordStartPerf, 0x9, 'lead', note, velocity);
+    if (recording) {
+      logEvent(now - recordStartPerf, 0x9, 'lead', note, velocity);
+      logEvent(now - recordStartPerf + KICK_LOG_DURATION_MS, 0x8, 'lead', note, 0);
+    }
     currentLeadNote = note;
     pulseMarkDot('lead');
   }
 
+  // Used only when the mic voice is switched off entirely — silence
+  // alone no longer cuts the kick early (see micProcess), since a real
+  // 808 kick is meant to ring out after its trigger ends.
   function leadNoteOff() {
-    if (currentLeadNote === null) return;
-    var now = performance.now();
     if (liveEngine) liveEngine.leadOff();
-    if (recording) logEvent(now - recordStartPerf, 0x8, 'lead', currentLeadNote, 0);
     currentLeadNote = null;
   }
 
@@ -1330,8 +1401,13 @@ window.Visualizer = (function () {
 
     if (!gateOpen) {
       if (currentLeadNote !== null) {
+        // Only resets the retrigger bookkeeping — deliberately does NOT
+        // stop the kick's own audio. A real 808 kick rings out on its
+        // own decay well after its trigger ends; cutting it here on
+        // mic silence would choke it right as the "bass" tail is the
+        // whole point.
         if (!micBelowSince) micBelowSince = now;
-        else if (now - micBelowSince > MIC_RELEASE_HANG_MS) { leadNoteOff(); micBelowSince = 0; micPendingNote = null; micPendingCount = 0; }
+        else if (now - micBelowSince > MIC_RELEASE_HANG_MS) { currentLeadNote = null; micBelowSince = 0; micPendingNote = null; micPendingCount = 0; }
       }
       return;
     }
@@ -1358,7 +1434,9 @@ window.Visualizer = (function () {
         Visualizer.trigger('lead', posFrac, levelFrac);
       }
     } else if (note !== currentLeadNote && micPendingCount >= MIC_STABLE_FRAMES) {
-      leadNoteOff();
+      // A retrigger — leadOn's own internal hard-cut (in createEngine)
+      // stops the still-ringing previous kick, so no explicit
+      // leadNoteOff() first.
       leadNoteOn(note, velocity);
       var posFrac2 = (note - LEAD_LOW) / Math.max(1, LEAD_HIGH - LEAD_LOW);
       Visualizer.trigger('lead', posFrac2, levelFrac);
@@ -1804,7 +1882,7 @@ window.Visualizer = (function () {
       if (!channelMap[e.channel]) channelMap[e.channel] = [];
       channelMap[e.channel].push(e);
     });
-    var names = { 1: 'Bass (light)', 2: 'Lead (mic)', 10: 'Percussion (motion)' };
+    var names = { 1: 'Bass (light)', 2: 'Kick (mic)', 10: 'Percussion (motion)' };
     var channels = Object.keys(channelMap).map(Number).sort(function (a, b) { return a - b; });
 
     var tracks = [buildTempoTrack(durationMs)];
