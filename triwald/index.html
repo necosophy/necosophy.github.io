@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Triwald — ambient sonifier</title>
-<meta name="description" content="Offline tri-sensor ambient instrument: light, mic, and motion as three live voices.">
+<meta name="description" content="Offline tri-sensor ambient instrument: light, compass heading, and motion as three live voices.">
 <meta name="theme-color" content="#0a0908">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
@@ -401,7 +401,7 @@
     </div>
     <div class="sensor-row" id="row-lead" data-voice="lead">
       <span class="dot"></span>
-      <span class="label">Mic &rarr; Kick</span>
+      <span class="label">Compass &rarr; Lead</span>
       <span class="hint">tap to enable</span>
     </div>
     <div class="sensor-row" id="row-perc" data-voice="perc">
@@ -443,7 +443,7 @@
 // Visualizer module — three zones (left/middle/right = bass/lead/perc),
 // modeled directly on Pentawald's particle visualizer so the two apps
 // share a visual language. Each zone also renders a continuous level
-// bar (brightness / mic amplitude / motion energy) in addition to the
+// bar (brightness / compass heading / motion energy) in addition to the
 // particle bursts fired on discrete note/hit events, since these three
 // sensors are continuous signals rather than discrete MIDI notes.
 // Public API: init(canvasEl), setLevel(voice, level0to1), trigger(voice, posFrac, velocityFrac).
@@ -635,16 +635,12 @@ window.Visualizer = (function () {
   // in a low register. It's told apart from the lead by that envelope
   // and timbre, not by pitch range alone.
   var BASS_LOW = 60, BASS_HIGH = 79;
-  // E1..A2 (~41-110Hz) — genuine 808-kick tuning. A2..E4 (the previous
-  // range) still read as a bright plucked tone rather than a kick; a
-  // kick's fundamental doesn't need to translate cleanly through a tiny
-  // phone speaker the way a held pad note does; what actually carries
-  // on a small speaker is the knock transient (see leadOn), so the
-  // sustained pitch itself is free to sit properly low. This is also
-  // independent of the mic's own detectable input range (70-1200Hz,
-  // see MIC_MIN_FREQ/MIC_MAX_FREQ below) — whatever pitch is hummed or
-  // spoken just gets bucketed down into this low range.
-  var LEAD_LOW = 28, LEAD_HIGH = 45;
+  // F4..F6, two octaves — sits above the bass pad's own register (60-79)
+  // for a clean mix, and gives a reasonable number of scale degrees per
+  // full 360° rotation for the compass voice (see Voice 2 below):
+  // too few and turning feels coarse/steppy, too many and small
+  // heading jitter fights holding a note steady.
+  var LEAD_LOW = 65, LEAD_HIGH = 89;
 
   var scaleRootEl = document.getElementById('scale-root');
   var scaleModeEl = document.getElementById('scale-mode');
@@ -693,15 +689,6 @@ window.Visualizer = (function () {
   scaleModeEl.addEventListener('change', recomputeScale);
   recomputeScale();
 
-  function nearestNote(list, midiFloat) {
-    var best = list[0], bestDist = Math.abs(midiFloat - best);
-    for (var i = 1; i < list.length; i++) {
-      var d = Math.abs(midiFloat - list[i]);
-      if (d < bestDist) { best = list[i]; bestDist = d; }
-    }
-    return best;
-  }
-
   function midiToFreq(note) {
     return 440 * Math.pow(2, (note - 69) / 12);
   }
@@ -738,22 +725,8 @@ window.Visualizer = (function () {
     return impulse;
   }
 
-  // A normalized soft-clip (tanh) curve for a WaveShaperNode — cheap way
-  // to give the mic voice's kick body a bit of 808-style drive/grit.
-  function makeDriveCurve(amount) {
-    var n = 1024;
-    var curve = new Float32Array(n);
-    var norm = Math.tanh(amount);
-    for (var i = 0; i < n; i++) {
-      var x = (i / (n - 1)) * 2 - 1;
-      curve[i] = Math.tanh(amount * x) / norm;
-    }
-    return curve;
-  }
-
   function createEngine(ctx, destination) {
     var noiseBuffer = makeNoiseBuffer(ctx, 0.3);
-    var kickDriveCurve = makeDriveCurve(1.6); // gentle — heavier drive added a buzzy, plucky edge to the low end
     var bassVoice = null;
     var leadVoice = null;
 
@@ -859,7 +832,7 @@ window.Visualizer = (function () {
     }
 
     function stopLeadVoice(v, time, fast) {
-      var releaseTime = fast ? 0.05 : 0.18;
+      var releaseTime = fast ? 0.05 : 0.3;
       v.gain.gain.cancelScheduledValues(time);
       v.gain.gain.setValueAtTime(Math.max(0.0001, v.gain.gain.value), time);
       v.gain.gain.linearRampToValueAtTime(0.0001, time + releaseTime);
@@ -874,76 +847,52 @@ window.Visualizer = (function () {
       v.osc.onended = cleanup;
     }
 
-    // Mic voice: a long 808-style kick rather than a sustained lead — a
-    // fast pitch drop for the "knock" transient, a soft-clipped sine
-    // body ringing out at the detected/quantized pitch for the bass
-    // tail, and a short filtered-noise click layered on the attack.
-    // Triggered once per detected onset; see leadNoteOn/leadNoteOff in
-    // the app code below — this voice's decay is no longer tied to how
-    // long the mic keeps picking up sound, so it rings out on its own.
+    // Compass voice: a sustained, continuously-retuning drone rather
+    // than a one-shot hit — leadOn starts it once (a moderate attack,
+    // then it just holds), and the live compass-heading loop in the app
+    // code below repeatedly calls leadGlideTo to slide its pitch toward
+    // wherever the current (smoothed, scale-quantized) heading points.
+    // Holding a heading steady means the glide settles and stays there;
+    // turning slides it continuously, theremin-style. leadOn/leadOff
+    // are still used as-is for discrete-note offline/MIDI playback
+    // (see renderWavBlob) — the recorded event log captures this
+    // continuous performance as discrete notes wherever the heading
+    // actually settled, not the live glide itself.
     function leadOn(note, velocity, time) {
       time = time || ctx.currentTime;
       if (leadVoice) { stopLeadVoice(leadVoice, time, true); leadVoice = null; }
 
       var freq = midiToFreq(note);
-      var vel = velocity / 127;
-      var decay = 1.1 + vel * 0.7;
-
-      // A gentler, slower pitch drop than a first pass here used (was
-      // 5x down to target over 45ms) — that combination read as a
-      // twangy pluck rather than a kick's thump. A smaller ratio and a
-      // touch more time softens the sweep into something closer to a
-      // thud.
       var osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq * 2.6, time);
-      osc.frequency.exponentialRampToValueAtTime(freq, time + 0.07);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
 
-      var drive = ctx.createWaveShaper();
-      drive.curve = kickDriveCurve;
-      drive.oversample = '2x';
+      var filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2800, time);
+      filter.Q.value = 1;
 
       var gainNode = ctx.createGain();
-      var peak = Math.min(0.55, 0.24 + vel * 0.28);
+      var peak = Math.min(0.3, 0.08 + (velocity / 127) * 0.2);
+      var attack = 0.08;
       gainNode.gain.setValueAtTime(0, time);
-      gainNode.gain.linearRampToValueAtTime(peak, time + 0.004);
-      gainNode.gain.exponentialRampToValueAtTime(0.0006, time + decay);
+      gainNode.gain.linearRampToValueAtTime(peak, time + attack);
 
-      osc.connect(drive);
-      drive.connect(gainNode);
+      osc.connect(filter);
+      filter.connect(gainNode);
       gainNode.connect(destination);
-
-      // A short high-passed noise click on the attack for the
-      // percussive "knock" — self-contained and short enough (~30ms)
-      // that it doesn't need to be part of the tracked/cuttable voice.
-      var knock = ctx.createBufferSource();
-      knock.buffer = noiseBuffer;
-      var knockFilter = ctx.createBiquadFilter();
-      knockFilter.type = 'highpass';
-      knockFilter.frequency.value = 700;
-      var knockGain = ctx.createGain();
-      var knockPeak = Math.min(0.3, 0.1 + vel * 0.15);
-      knockGain.gain.setValueAtTime(knockPeak, time);
-      knockGain.gain.exponentialRampToValueAtTime(0.0006, time + 0.02);
-      knock.connect(knockFilter);
-      knockFilter.connect(knockGain);
-      knockGain.connect(destination);
-      knock.onended = function () { disconnectAll([knock, knockFilter, knockGain]); };
-      knock.start(time);
-      knock.stop(time + 0.03);
-
-      var stopAt = time + decay + 0.05;
-      var cleaned = false;
-      function cleanup() {
-        if (cleaned) return;
-        cleaned = true;
-        disconnectAll([osc, drive, gainNode]);
-      }
-      osc.onended = cleanup;
       osc.start(time);
-      osc.stop(stopAt);
 
-      leadVoice = { osc: osc, filter: drive, gain: gainNode };
+      leadVoice = { osc: osc, filter: filter, gain: gainNode };
+    }
+
+    // Retunes the currently-sounding lead voice smoothly rather than
+    // retriggering it — called on every processed heading sample, live
+    // only (the offline/MIDI path never calls this).
+    function leadGlideTo(freq, time) {
+      if (!leadVoice) return;
+      time = time || ctx.currentTime;
+      leadVoice.osc.frequency.setTargetAtTime(freq, time, 0.09);
     }
 
     function leadOff(time) {
@@ -1043,7 +992,7 @@ window.Visualizer = (function () {
       }
     }
 
-    return { bassOn: bassOn, bassOff: bassOff, leadOn: leadOn, leadOff: leadOff, percHit: percHit };
+    return { bassOn: bassOn, bassOff: bassOff, leadOn: leadOn, leadOff: leadOff, leadGlideTo: leadGlideTo, percHit: percHit };
   }
 
   // ---------------------------------------------------------------
@@ -1286,249 +1235,151 @@ window.Visualizer = (function () {
   });
 
   // ---------------------------------------------------------------
-  // Voice 2 — Microphone -> Kick (808-style). Pitch/amplitude tracked,
-  // monophonic, the most reactive voice. Internal identifiers below
-  // still say "lead" (unrenamed to keep this change low-risk) — this is
-  // the same mic voice, just a different instrument on top of it.
+  // Voice 2 — Compass heading -> Lead. A continuous, held drone whose
+  // pitch tracks the phone's compass heading across the scale range —
+  // turning slides the pitch (theremin-style), holding a heading steady
+  // settles and sustains a tone. Internal identifiers below still say
+  // "lead"/"mic" in places that predate this — the musical voice/channel
+  // identity (channel 2, leadNotes, the engine's leadOn/leadOff/
+  // leadGlideTo) has stayed the same across mic -> kick -> compass, only
+  // what drives and synthesizes it has changed.
   // ---------------------------------------------------------------
 
-  var MIC_FFT_SIZE = 1024;
-  var MIC_MIN_PROCESS_MS = 33; // throttle to ~30fps regardless of rAF rate
-  // The hard floor was dominating over the adaptive noise floor in any
-  // normal (quiet-ish) room, which is what made this need something
-  // close to shouting to trigger at all — dropped substantially, and
-  // now leans on the adaptive floor + hysteresis (see micProcess) to
-  // reject ambient noise instead of a conservative fixed minimum.
-  var MIC_MIN_RMS = 0.01;
-  var MIC_NOISE_ADAPT_UP = 0.995;  // floor rises slowly to track louder ambient noise
-  var MIC_NOISE_ADAPT_DOWN = 0.9;  // floor falls quickly once the room goes quiet
-  var MIC_ON_MULT = 2.0;   // margin over the floor required to START a note
-  var MIC_OFF_MULT = 1.3;  // margin required to KEEP one held (hysteresis)
-  var MIC_CORR_CONFIDENCE = 0.4;
-  var MIC_RELEASE_HANG_MS = 180;
-  var MIC_STABLE_FRAMES = 2;
-  var MIC_MIN_FREQ = 70, MIC_MAX_FREQ = 1200;
-  var MIC_PEAK_RMS = 0.22; // normal speaking/humming volume should read as near-full level, not just a sliver
+  var HEADING_SMOOTH_ALPHA = 0.25; // EMA weight per sample — responsive but not jittery
+  var HEADING_SETTLE_MS = 200;     // how long a new scale degree must hold before it's logged as a note change
+  var LEAD_VELOCITY = 90;
 
-  var micStream = null;
-  var micSourceNode = null;
-  var micAnalyser = null;
-  var micBuf = null;
-  var micActive = false;
-  var micRafHandle = null;
-  var micLastProcessAt = 0;
-  var micNoiseFloor = 0.01;
-  var micBelowSince = 0;
-  var micPendingNote = null;
-  var micPendingCount = 0;
+  var compassActive = false;
+  var compassHandler = null;
+  var compassEventName = null;
+  // Circular EMA state (sin/cos components, not the raw degree value) —
+  // smoothing the raw 0-360 heading directly would break at the
+  // 359deg -> 0deg wraparound (averaging 359 and 1 the naive way gives
+  // 180, not 0), so the smoothing happens on the unit-circle
+  // components instead and is only converted back to degrees after.
+  var headingSin = 0, headingCos = 1;
+  var headingInitialized = false;
+  var compassPendingNote = null;
+  var compassSettleSince = 0;
   var currentLeadNote = null;
 
-  var KICK_LOG_DURATION_MS = 900; // for MIDI export only — the audio rings out on its own decay, not this
-
-  // The kick is a one-shot, self-decaying hit — logged immediately as
-  // a paired on/off event (like percussion), since its duration isn't
-  // tied to how long the mic keeps picking up sound. A retrigger calls
-  // this directly and relies on leadOn's own internal hard-cut (see
-  // stopLeadVoice in createEngine) rather than an explicit leadNoteOff
-  // first — same fix as the bass voice's retrigger got.
-  function leadNoteOn(note, velocity) {
-    var now = performance.now();
-    if (liveEngine) liveEngine.leadOn(note, velocity);
-    if (recording) {
-      logEvent(now - recordStartPerf, 0x9, 'lead', note, velocity);
-      logEvent(now - recordStartPerf + KICK_LOG_DURATION_MS, 0x8, 'lead', note, 0);
-    }
-    currentLeadNote = note;
-    pulseMarkDot('lead');
+  function extractHeading(event) {
+    // iOS Safari's non-standard extension: already a true compass
+    // bearing (0 = north, increasing clockwise), no conversion needed.
+    if (typeof event.webkitCompassHeading === 'number') return event.webkitCompassHeading;
+    // Standard DeviceOrientationEvent.alpha increases counterclockwise
+    // (rotation around Z per the spec) — flipping it converts to the
+    // usual clockwise compass-bearing convention. Used even when
+    // event.absolute isn't true (some Android browsers never set it)
+    // since an uncalibrated relative heading still works fine for
+    // "turning the phone changes pitch" — it just may not be
+    // true-north-referenced on those devices.
+    if (event.alpha !== null && event.alpha !== undefined) return (360 - event.alpha) % 360;
+    return null;
   }
 
-  // Used only when the mic voice is switched off entirely — silence
-  // alone no longer cuts the kick early (see micProcess), since a real
-  // 808 kick is meant to ring out after its trigger ends.
-  function leadNoteOff() {
-    if (liveEngine) liveEngine.leadOff();
-    currentLeadNote = null;
-  }
-
-  // Autocorrelation pitch detector, restricted to the lag range that
-  // covers MIC_MIN_FREQ..MIC_MAX_FREQ so the O(n*lags) cost stays small
-  // enough for an old phone at ~30fps. Returns -1 when the signal isn't
-  // confidently pitched (silence, noise, percussive transient).
-  function detectPitch(buf, sampleRate) {
-    var n = buf.length;
-    var energy0 = 0;
-    for (var i = 0; i < n; i++) energy0 += buf[i] * buf[i];
-    if (energy0 < 1e-6) return -1;
-
-    var minLag = Math.max(2, Math.floor(sampleRate / MIC_MAX_FREQ));
-    var maxLag = Math.min(n - 1, Math.ceil(sampleRate / MIC_MIN_FREQ));
-
-    var corr = new Array(maxLag - minLag + 1);
-    var globalMax = 0;
-    for (var lag = minLag; lag <= maxLag; lag++) {
-      var c = 0;
-      var count = n - lag;
-      for (var j = 0; j < count; j++) c += buf[j] * buf[j + lag];
-      c = c / count;
-      corr[lag - minLag] = c;
-      if (c > globalMax) globalMax = c;
-    }
-
-    // A harmonic tone correlates strongly not just at its true period
-    // but at every integer multiple of it too, and those longer lags
-    // (lower frequencies) can occasionally out-score the fundamental if
-    // we just took the global max — a classic octave-down pitch error.
-    // Scanning for the FIRST strong local peak, ascending from the
-    // shortest lag, finds the fundamental instead of a subharmonic.
-    var threshold = globalMax * 0.85;
-    var bestLag = -1, bestCorr = 0;
-    for (var li = 1; li < corr.length - 1; li++) {
-      if (corr[li] >= threshold && corr[li] >= corr[li - 1] && corr[li] >= corr[li + 1]) {
-        bestLag = li + minLag;
-        bestCorr = corr[li];
-        break;
-      }
-    }
-    if (bestLag === -1) {
-      var gi = corr.indexOf(globalMax);
-      bestLag = gi + minLag;
-      bestCorr = globalMax;
-    }
-
-    if (bestCorr < (energy0 / n) * MIC_CORR_CONFIDENCE) return -1;
-
-    // Parabolic interpolation around the best lag for sub-sample precision.
-    var refined = bestLag;
-    var idx = bestLag - minLag;
-    if (idx > 0 && idx < corr.length - 1) {
-      var c0 = corr[idx - 1], c1 = corr[idx], c2 = corr[idx + 1];
-      var denom = (c0 + c2 - 2 * c1);
-      if (denom !== 0) refined = bestLag + 0.5 * (c0 - c2) / denom;
-    }
-
-    return sampleRate / refined;
-  }
-
-  function micProcess(ts) {
-    if (!micActive) return;
-    micRafHandle = requestAnimationFrame(micProcess);
-    if (ts - micLastProcessAt < MIC_MIN_PROCESS_MS) return;
-    micLastProcessAt = ts;
-
-    micAnalyser.getFloatTimeDomainData(micBuf);
-    var rms = 0;
-    for (var i = 0; i < micBuf.length; i++) rms += micBuf[i] * micBuf[i];
-    rms = Math.sqrt(rms / micBuf.length);
-
-    var now = performance.now();
-
-    // Noise floor adapts continuously — not only while the gate is
-    // closed — asymmetrically: it drops quickly toward a quieter room
-    // but only creeps up slowly toward louder ambient noise. Gating the
-    // adaptation on "gate closed" (as this used to) meant a room whose
-    // self-noise/hum sat above the fixed threshold (echoCancellation and
-    // noiseSuppression are deliberately off, for cleaner pitch tracking)
-    // left the floor stuck low and the gate permanently open, which is
-    // what made the lead voice hold a phantom tone through real silence.
-    if (rms < micNoiseFloor) micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT_DOWN + rms * (1 - MIC_NOISE_ADAPT_DOWN);
-    else micNoiseFloor = micNoiseFloor * MIC_NOISE_ADAPT_UP + rms * (1 - MIC_NOISE_ADAPT_UP);
-
-    var levelFrac = Math.min(1, rms / MIC_PEAK_RMS);
-    Visualizer.setLevel('lead', levelFrac);
-
-    // Schmitt-trigger gate: starting a new note needs a clearly stronger
-    // onset than merely holding one already sounding, so a note that's
-    // singing doesn't get cut by small natural dips, while noise alone
-    // can't kick off a new one as easily.
-    var threshold = currentLeadNote !== null
-      ? Math.max(MIC_MIN_RMS * 0.7, micNoiseFloor * MIC_OFF_MULT)
-      : Math.max(MIC_MIN_RMS, micNoiseFloor * MIC_ON_MULT);
-    var gateOpen = rms > threshold;
-
-    if (!gateOpen) {
-      if (currentLeadNote !== null) {
-        // Only resets the retrigger bookkeeping — deliberately does NOT
-        // stop the kick's own audio. A real 808 kick rings out on its
-        // own decay well after its trigger ends; cutting it here on
-        // mic silence would choke it right as the "bass" tail is the
-        // whole point.
-        if (!micBelowSince) micBelowSince = now;
-        else if (now - micBelowSince > MIC_RELEASE_HANG_MS) { currentLeadNote = null; micBelowSince = 0; micPendingNote = null; micPendingCount = 0; }
-      }
-      return;
-    }
-
-    micBelowSince = 0;
-    var freq = detectPitch(micBuf, micAnalyser.context.sampleRate);
-    if (freq <= 0) return;
-
-    var midiFloat = 69 + 12 * Math.log(freq / 440) / Math.LN2;
-    var note = nearestNote(leadNotes, midiFloat);
-    var velocity = Math.max(1, Math.min(127, Math.round(20 + Math.min(1, rms / MIC_PEAK_RMS) * 107)));
-
-    if (note === micPendingNote) {
-      micPendingCount++;
+  function compassProcess(rawDeg) {
+    var rad = rawDeg * Math.PI / 180;
+    if (!headingInitialized) {
+      headingSin = Math.sin(rad);
+      headingCos = Math.cos(rad);
+      headingInitialized = true;
     } else {
-      micPendingNote = note;
-      micPendingCount = 1;
+      headingSin += (Math.sin(rad) - headingSin) * HEADING_SMOOTH_ALPHA;
+      headingCos += (Math.cos(rad) - headingCos) * HEADING_SMOOTH_ALPHA;
     }
+    var smoothedDeg = Math.atan2(headingSin, headingCos) * 180 / Math.PI;
+    if (smoothedDeg < 0) smoothedDeg += 360;
+
+    Visualizer.setLevel('lead', smoothedDeg / 360);
+
+    var idx = Math.max(0, Math.min(leadNotes.length - 1, Math.floor((smoothedDeg / 360) * leadNotes.length)));
+    var note = leadNotes[idx];
+    var freq = midiToFreq(note);
+    var now = performance.now();
+    var posFrac = idx / Math.max(1, leadNotes.length - 1);
 
     if (currentLeadNote === null) {
-      if (micPendingCount >= 1) {
-        leadNoteOn(note, velocity);
-        var posFrac = (note - LEAD_LOW) / Math.max(1, LEAD_HIGH - LEAD_LOW);
-        Visualizer.trigger('lead', posFrac, levelFrac);
-      }
-    } else if (note !== currentLeadNote && micPendingCount >= MIC_STABLE_FRAMES) {
-      // A retrigger — leadOn's own internal hard-cut (in createEngine)
-      // stops the still-ringing previous kick, so no explicit
-      // leadNoteOff() first.
-      leadNoteOn(note, velocity);
-      var posFrac2 = (note - LEAD_LOW) / Math.max(1, LEAD_HIGH - LEAD_LOW);
-      Visualizer.trigger('lead', posFrac2, levelFrac);
-    }
-  }
-
-  function enableLead() {
-    resumeAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setRowState('lead', false, 'mic unsupported', true);
+      // First reading since enabling — start the sustained drone.
+      if (liveEngine) liveEngine.leadOn(note, LEAD_VELOCITY);
+      if (recording) logEvent(now - recordStartPerf, 0x9, 'lead', note, LEAD_VELOCITY);
+      currentLeadNote = note;
+      compassPendingNote = note;
+      compassSettleSince = now;
+      pulseMarkDot('lead');
+      Visualizer.trigger('lead', posFrac, 0.5);
       return;
     }
-    setRowState('lead', false, 'requesting…', false);
-    navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      video: false
-    }).then(function (stream) {
-      micStream = stream;
-      micSourceNode = audioCtx.createMediaStreamSource(stream);
-      micAnalyser = audioCtx.createAnalyser();
-      micAnalyser.fftSize = MIC_FFT_SIZE;
-      micBuf = new Float32Array(micAnalyser.fftSize);
-      micSourceNode.connect(micAnalyser); // analysis only — never connected to destination
-      micActive = true;
-      micNoiseFloor = 0.01;
-      micLastProcessAt = 0;
-      micRafHandle = requestAnimationFrame(micProcess);
-      setRowState('lead', true, 'tap to disable', false);
-    }).catch(function (err) {
-      setRowState('lead', false, mediaErrorHint(err, 'mic'), true);
-    });
+
+    // Always glide the live oscillator toward wherever the smoothed
+    // heading currently points. This is independent of the slower,
+    // hysteresis-gated recording/logging below — the live audio should
+    // feel immediately responsive even while what gets logged as a
+    // discrete "note" waits for the heading to actually settle.
+    if (liveEngine) liveEngine.leadGlideTo(freq);
+
+    if (note !== compassPendingNote) {
+      compassPendingNote = note;
+      compassSettleSince = now;
+    } else if (note !== currentLeadNote && (now - compassSettleSince) >= HEADING_SETTLE_MS) {
+      if (recording) {
+        logEvent(now - recordStartPerf, 0x8, 'lead', currentLeadNote, 0);
+        logEvent(now - recordStartPerf, 0x9, 'lead', note, LEAD_VELOCITY);
+      }
+      currentLeadNote = note;
+      pulseMarkDot('lead');
+      Visualizer.trigger('lead', posFrac, 0.5);
+    }
   }
 
-  function disableLead() {
-    micActive = false;
-    if (micRafHandle) { cancelAnimationFrame(micRafHandle); micRafHandle = null; }
-    if (micSourceNode) { try { micSourceNode.disconnect(); } catch (e) {} micSourceNode = null; }
-    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
-    micAnalyser = null;
-    leadNoteOff();
+  function attachCompassListener() {
+    compassEventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+    compassHandler = function (event) {
+      var raw = extractHeading(event);
+      if (raw !== null) compassProcess(raw);
+    };
+    window.addEventListener(compassEventName, compassHandler);
+    compassActive = true;
+    setRowState('lead', true, 'tap to disable', false);
+  }
+
+  function enableCompass() {
+    resumeAudio();
+    if (!window.DeviceOrientationEvent) {
+      setRowState('lead', false, 'compass unsupported', true);
+      return;
+    }
+    if (!window.isSecureContext) {
+      setRowState('lead', false, 'needs https', true);
+      return;
+    }
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // Must be called synchronously from this click handler — no
+      // awaited work before it — or iOS silently denies the prompt.
+      DeviceOrientationEvent.requestPermission().then(function (state) {
+        if (state === 'granted') attachCompassListener();
+        else setRowState('lead', false, 'permission denied', true);
+      }).catch(function () {
+        setRowState('lead', false, 'permission denied', true);
+      });
+    } else {
+      attachCompassListener();
+    }
+  }
+
+  function disableCompass() {
+    compassActive = false;
+    if (compassHandler) { window.removeEventListener(compassEventName, compassHandler); compassHandler = null; }
+    headingInitialized = false;
+    compassPendingNote = null;
+    if (liveEngine) liveEngine.leadOff();
+    currentLeadNote = null;
     Visualizer.setLevel('lead', 0);
     setRowState('lead', false, 'tap to enable', false);
   }
 
   rowEls.lead.addEventListener('click', function () {
-    if (micActive) disableLead(); else enableLead();
+    if (compassActive) disableCompass(); else enableCompass();
   });
 
   // ---------------------------------------------------------------
@@ -1928,7 +1779,7 @@ window.Visualizer = (function () {
       if (!channelMap[e.channel]) channelMap[e.channel] = [];
       channelMap[e.channel].push(e);
     });
-    var names = { 1: 'Bass (light)', 2: 'Kick (mic)', 10: 'Percussion (motion)' };
+    var names = { 1: 'Bass (light)', 2: 'Lead (compass)', 10: 'Percussion (motion)' };
     var channels = Object.keys(channelMap).map(Number).sort(function (a, b) { return a - b; });
 
     var tracks = [buildTempoTrack(durationMs)];
