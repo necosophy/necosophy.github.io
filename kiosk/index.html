@@ -48,7 +48,7 @@
     height:100vh;
     height:100dvh;
     display:grid;
-    grid-template-rows: 28vh 31vh 1fr;
+    grid-template-rows: 30vh 29vh 1fr;
     gap:0.55vw;
     padding:0.55vw;
     overflow:hidden;
@@ -91,7 +91,7 @@
     position:relative;
     border:1px solid var(--accent, var(--border));
     background:#000;
-    padding:0.55vw 0.85vw 0.75vw;
+    padding:0.5vw 0.85vw 0.5vw;
     display:flex;
     flex-direction:column;
     overflow:hidden;
@@ -183,7 +183,7 @@
     text-shadow:0 0 8px rgba(184,115,51,0.5);
   }
   .wx-cond{ font-size:1.5vw; color:var(--cream); letter-spacing:0.05vw; }
-  .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.7vw; }
+  .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.4vw; }
   .wx-fc-day{ font-size:1vw; color:var(--copper-dim); text-align:center; }
   .wx-fc-day b{ color:var(--copper); display:block; font-size:1.6vw; }
 
@@ -191,18 +191,19 @@
   .wx-col{ flex:0 0 auto; min-width:0; display:flex; flex-direction:column; align-items:flex-start; }
   .wx-col:first-child{ --stat-w:11vw; align-items:center; }
   .wx-col:last-child{ --stat-w:14.5vw; }
-  .wx-col .stat-line:first-child{ margin-top:0.15vw; }
+  .wx-col .stat-line:first-child{ margin-top:0.05vw; }
+  #tile-weather .stat-line{ margin-top:0.2vw; }
 
   /* ---------- sun ---------- */
 
   #tile-sun{ --accent:var(--amber); --stat-w:12vw; }
   .sun-hero{
-    font-size:3vw; font-weight:700; color:var(--copper);
+    font-size:2.6vw; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
     font-variant-numeric: tabular-nums;
   }
-  .sun-hero-label{ font-size:0.8vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.15vw; }
-  #tile-sun .stat-line{ margin-top:0.2vw; }
+  .sun-hero-label{ font-size:0.75vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.05vw; }
+  #tile-sun .stat-line{ margin-top:0.05vw; }
 
   /* ---------- moon ---------- */
 
@@ -248,7 +249,7 @@
 
   /* ---------- critters (cat & lizard chase) ---------- */
 
-  #tile-critters{ --accent:var(--violet); }
+  #tile-critters{ --accent:var(--pink); }
   #chase-canvas{ display:block; width:100%; height:100%; }
 
   /* ---------- CRT overlay effects ---------- */
@@ -379,7 +380,7 @@
     </div>
 
     <div class="tile" id="tile-critters">
-      <div class="tile-head">CRITTERS</div>
+      <div class="tile-head">CAT &amp; LIZARD</div>
       <div class="ascii-div"></div>
       <div class="tile-body">
         <canvas id="chase-canvas"></canvas>
@@ -1252,17 +1253,30 @@
       [[2, -1], [3, -2], [3, -3]].forEach(function(p){
         ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
       });
-      // legs as thin strokes, alternating for a walk cycle -- clearer
-      // limb motion than small blocks at this size
+      // legs: proportional pixel blocks -- same size as the body's own
+      // blocks, not stray thin marks -- shifted slightly forward/back
+      // with legPhase for a walk cycle
+      var legShift = legPhase ? 0.35 : -0.35;
+      [[-0.6 + legShift, 1], [0.6 - legShift, 1]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+
+      // face detail, sized to stay legible within the head block: two eye
+      // dots, a nose dot, and a few whisker strokes off the near cheek
+      ctx.fillStyle = "#1a0e04";
+      var eyeSize = px * 0.24;
+      ctx.fillRect(-3.65 * px - eyeSize / 2, -1.15 * px - eyeSize / 2, eyeSize, eyeSize);
+      ctx.fillRect(-2.75 * px - eyeSize / 2, -1.15 * px - eyeSize / 2, eyeSize, eyeSize);
+      var noseSize = px * 0.2;
+      ctx.fillRect(-4.15 * px - noseSize / 2, -0.75 * px - noseSize / 2, noseSize, noseSize);
+
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1.7;
-      var legY = legPhase ? 1.1 : 0.55;
-      var legY2 = legPhase ? 0.55 : 1.1;
+      ctx.lineWidth = 0.9;
       ctx.beginPath();
-      ctx.moveTo(-0.6 * px, 0.55 * px);
-      ctx.lineTo(-0.6 * px, legY * px);
-      ctx.moveTo(0.6 * px, 0.55 * px);
-      ctx.lineTo(0.6 * px, legY2 * px);
+      [-0.95, -0.75, -0.55].forEach(function(y){
+        ctx.moveTo(-4.2 * px, y * px);
+        ctx.lineTo(-5.6 * px, (y - 0.12) * px);
+      });
       ctx.stroke();
       ctx.restore();
     }
