@@ -10,32 +10,35 @@ on an old Android phone in [Fully Kiosk Browser](https://www.fully-kiosk.com/).
 
 Three rows: two tiles, three tiles, two larger tiles.
 
-- **Clock** — HH:MM:SS, local time. The one tile that breaks from the
-  copper palette — its digits are pink.
-- **Sun** — sunrise, sunset, solar noon, and a live "daylight remaining"
-  countdown (or "sunrise in…" overnight). Computed entirely locally — no
-  network call.
-- **Moon** — phase, illumination %, moonrise/moonset, and current
-  distance to the Moon in km. Computed entirely locally. Its phase name,
-  crescent graphic, and rise/set/distance values are a warm off-white
-  rather than copper, so it reads as visually distinct from the other
-  panels.
-- **Planets tonight** — which of Mercury/Venus/Mars/Jupiter/Saturn are
-  currently above the horizon (shown with rough compass direction +
+- **Clock** — HH:MM:SS, local time, in pink.
+- **Sun** (amber) — sunrise, sunset, solar noon, and a live "daylight
+  remaining" countdown (or "sunrise in…" overnight). Computed entirely
+  locally — no network call.
+- **Moon** (cream/off-white) — phase, illumination %, moonrise/moonset,
+  and current distance to the Moon in km. Computed entirely locally.
+- **Planets tonight** (dim cyan) — which of Mercury/Venus/Mars/Jupiter/Saturn
+  are currently above the horizon (shown with rough compass direction +
   altitude), or a "daytime" note when the sun's up. Computed locally,
   refreshed hourly.
-- **Next event** — next full moon, next new moon, and (if within ~60 days)
-  the next meteor shower or eclipse. Computed locally, refreshed daily.
-- **Weather** — current conditions for Cahuita, Costa Rica, laid out as a
-  two-column grid: temperature, condition, and feels-like on the left;
-  wind (speed + compass direction), humidity, pressure, cloud cover, and
-  6-hour precipitation probability on the right, plus a 2-day forecast
+- **Next event** (muted violet) — next full moon, next new moon, and (if
+  within ~60 days) the next meteor shower or eclipse. Computed locally,
+  refreshed daily.
+- **Weather** (copper) — current conditions for Cahuita, Costa Rica, laid
+  out as a two-column grid: temperature, condition, and feels-like on the
+  left; wind (speed + compass direction), humidity, pressure, cloud cover,
+  and 6-hour precipitation probability on the right, plus a 2-day forecast
   strip along the bottom. Via [Open-Meteo](https://open-meteo.com/) (no
   API key).
-- **Critters** — a small canvas animation: a copper cat chasing an amber
-  lizard around the tile, both wandering with randomized paths. The lizard
-  darts erratically now and then; the cat is always a little slower, so it
-  never actually catches it.
+- **Critters** (violet) — a small canvas animation: a copper cat with a
+  proper body and a curling tail, chasing an amber lizard around the tile
+  past a handful of faint pine-silhouette shapes that drift in and out of
+  view in the background. Both critters wander with randomized paths; the
+  lizard darts erratically now and then, and the cat is always a little
+  slower, so it never actually catches it.
+
+Each tile's accent color is chosen so no two *adjacent* tiles share one —
+see "Colors/accents" under Adjusting for the full palette and the
+adjacency reasoning.
 
 Everything is a single static `index.html` — inline CSS and JS, no build
 step, no dependencies beyond a Google Fonts link.
@@ -90,6 +93,47 @@ sunrise/sunset times, no recomputation), next-event daily. The astronomy
 tiles have nothing to fail over to begin with — they're local math, not
 fetches — so they stay correct even with no network at all.
 
+## Fullscreen and the "bottom row cut off" bug
+
+Two unrelated problems used to combine to cut off the bottom row of tiles,
+and both are fixed now:
+
+1. **The fullscreen request wasn't reliable.** `requestFullscreen()` must
+   run synchronously inside a trusted user-gesture handler with nothing
+   async in between, or many mobile browsers silently reject it — and a
+   single `{once: true}` attempt meant one failed try left the browser's
+   own address bar on screen for good, eating into the visible height.
+   The listener now stays registered on `click`, `touchend`, *and*
+   `pointerdown` (not just one), keeps retrying on every subsequent tap
+   rather than giving up after one attempt, and skips the request
+   entirely once `document.fullscreenElement` confirms it's already
+   active.
+2. **Even with fullscreen working, `100vh` doesn't shrink when a browser
+   shows its own chrome** (address bar, etc.) — it's fixed to the full
+   layout viewport regardless. `100dvh` (dynamic viewport height) tracks
+   the *actual visible* viewport instead, so the dashboard now sizes
+   itself with `height:100vh; height:100dvh;` (older browsers that don't
+   understand `dvh` simply keep the `vh` value before it) — belt-and-suspenders
+   with fix #1, so a chrome bar that does end up on screen for any reason
+   still doesn't push content below the fold.
+3. **A separate CSS Grid bug, found and fixed while testing #2**: the
+   three row-wrapper `<div>`s (`.row-top`/`.row-astro`/`.row-bottom`) are
+   themselves grid *items* of the outer `.dashboard` grid, and a grid
+   item's default `min-height` is `auto` — its content's natural size —
+   not `0`. That meant a row whose tile content was taller than its
+   `vh`/`1fr` track allocation (which became a real risk once the body
+   font sizes below were doubled) could force the *entire row* taller
+   than intended, pushing it past the viewport where `body`'s
+   `overflow:hidden` would silently clip it — reproducing the exact
+   "bottom row cut off" symptom, just from a completely different cause
+   than the fullscreen issue. All three row wrappers now set
+   `min-height:0` to let the grid's own track sizing win instead.
+
+Verified by simulating a shrunk viewport (down to 120px shorter than full
+height, comfortably past any real Android address bar) with a full
+Playwright overflow check at each step — zero overflow anywhere in that
+range, both before and after the grid fix confirmed the difference.
+
 ## Screen wake lock
 
 The page requests the [Screen Wake Lock
@@ -143,15 +187,17 @@ backend to run.
 
 ### Getting rid of the browser chrome / status bar
 
-The page itself requests fullscreen (`document.documentElement.requestFullscreen()`)
-on the very first tap anywhere on the screen — browsers block automatic
-fullscreen without a user gesture, so this is as close to automatic as the
-web platform allows. If you still see a persistent top bar or address bar
-after that first tap, that's almost certainly coming from **Fully Kiosk
-Browser's own UI**, not the page — the Fullscreen API only ever controls
-the *browser's own* chrome, and Fully Kiosk draws some of its bars on top
-of that. Check these Fully Kiosk settings, which suppress its chrome
-independent of anything the page does:
+The page itself requests fullscreen on every tap until it succeeds (see
+"Fullscreen and the 'bottom row cut off' bug" above) — browsers block
+*automatic* fullscreen with no gesture at all, so a tap is as close to
+automatic as the web platform allows, and the layout no longer relies on
+fullscreen actually landing anyway (the `100dvh` fallback covers that
+case). If you still see a persistent top bar or address bar after
+tapping, that's almost certainly coming from **Fully Kiosk Browser's own
+UI**, not the page — the Fullscreen API only ever controls the *browser's
+own* chrome, and Fully Kiosk draws some of its bars on top of that. Check
+these Fully Kiosk settings, which suppress its chrome independent of
+anything the page does:
 
 - **Enable Kiosk Mode**
 - **Hide Status Bar**
@@ -172,14 +218,21 @@ Everything lives in `kiosk/index.html`:
   they all read the same two constants.
 - **Eclipse table** — extend the `ECLIPSES` array once its dates run out
   (see "How the astronomy tiles work" above).
-- **Colors/accents** — the CSS custom properties at the top of `<style>`
-  control the palette: `--copper` is the primary phosphor color used
-  everywhere by default, `--pink` and `--cream` are the two deliberate
-  exceptions (Clock and Moon respectively, each overriding specific rules
-  rather than the shared defaults), and `--cyan`/`--amber`/`--magenta` are
-  the secondary per-tile accents each tile picks via its `--accent`
-  override. `--copper-dim`/`--cream-dim` are the dimmed variants used for
-  secondary/label text.
+- **Colors/accents** — six tones live as CSS custom properties at the top
+  of `<style>`, each tile setting its own via the `--accent` custom
+  property on its `#tile-*` rule: `--copper` (Weather, and the default
+  body text color everywhere else), `--pink` (Clock), `--cream` (Moon),
+  `--cyan` (Planets), `--amber` (Sun), `--violet` (Next Event). Critters
+  reuses `--violet` — the only repeated tone — but it's placed two tiles
+  away from Next Event on the grid, so no two tiles that actually share
+  an edge repeat a color. Check adjacency before reusing a tone if you
+  rearrange tiles. `--copper-dim`/`--cream-dim` are dimmed variants used
+  for label text.
+- **Data vs. label sizing** — the small dim-label / large-bright-value
+  pattern used throughout (RISE/SET/WIND/etc.) is one shared CSS class,
+  `.stat-line` (with `.lbl` for the label and a `<b>` for the value) —
+  change its two font-size declarations to rebalance every tile's data
+  legibility at once, rather than hunting through each tile's own CSS.
 - **Fetch timeout** — the `12000` (ms) argument to `fetchWithTimeout` in
   the weather fetch; raise it if you're on a persistently slow connection
   and 12s is triggering false "stale" states.
