@@ -1,32 +1,38 @@
 # kiosk
 
 A retro CRT-terminal dashboard for a wall-mounted display. Black background,
-phosphor green text, scanlines, vignette, sharp corners — built to run 24/7
+copper phosphor text, scanlines, vignette, sharp corners — built to run 24/7
 on an old Android phone in [Fully Kiosk Browser](https://www.fully-kiosk.com/).
 
 **Live:** https://necosophy.github.io/kiosk/
 
 ## What's on it
 
-Three rows: three small tiles, three small tiles, two larger tiles.
+Three rows: two tiles, three tiles, two larger tiles.
 
-- **Clock** — HH:MM:SS, local time.
-- **Weather** — current temperature/condition + 2-day forecast for Cahuita,
-  Costa Rica, via [Open-Meteo](https://open-meteo.com/) (no API key).
+- **Clock** — HH:MM:SS, local time. The one tile that breaks from the
+  copper palette — its digits are pink.
 - **Sun** — sunrise, sunset, solar noon, and a live "daylight remaining"
   countdown (or "sunrise in…" overnight). Computed entirely locally — no
   network call.
 - **Moon** — phase, illumination %, moonrise/moonset, and current
-  distance to the Moon in km. Also computed entirely locally.
+  distance to the Moon in km. Computed entirely locally. Its phase name,
+  crescent graphic, and rise/set/distance values are a warm off-white
+  rather than copper, so it reads as visually distinct from the other
+  panels.
 - **Planets tonight** — which of Mercury/Venus/Mars/Jupiter/Saturn are
   currently above the horizon (shown with rough compass direction +
   altitude), or a "daytime" note when the sun's up. Computed locally,
   refreshed hourly.
 - **Next event** — next full moon, next new moon, and (if within ~60 days)
   the next meteor shower or eclipse. Computed locally, refreshed daily.
-- **Headlines** — rotates through BBC World headlines, fetched via
-  [rss2json](https://rss2json.com/).
-- **Critters** — a small canvas animation: a green cat chasing an amber
+- **Weather** — current conditions for Cahuita, Costa Rica, laid out as a
+  two-column grid: temperature, condition, and feels-like on the left;
+  wind (speed + compass direction), humidity, pressure, cloud cover, and
+  6-hour precipitation probability on the right, plus a 2-day forecast
+  strip along the bottom. Via [Open-Meteo](https://open-meteo.com/) (no
+  API key).
+- **Critters** — a small canvas animation: a copper cat chasing an amber
   lizard around the tile, both wandering with randomized paths. The lizard
   darts erratically now and then; the cat is always a little slower, so it
   never actually catches it.
@@ -60,8 +66,17 @@ computation:
 ## Resilience
 
 This is meant to run unattended for weeks. Every fetch is wrapped in
-`try/catch`:
+`try/catch` *and* a hard timeout:
 
+- **Every network call is bounded to 12 seconds** via `AbortController`
+  (see `fetchWithTimeout` in `index.html`). This isn't optional dressing —
+  a bare `fetch()` with no timeout can hang forever on a stalled
+  connection without ever resolving *or* rejecting, which silently
+  defeats a plain `try/catch`: the `.catch()` handler simply never runs,
+  so the tile is stuck on its placeholder indefinitely with no visible
+  sign anything is wrong. That was the root cause the last time the
+  weather tile went blank. Wrapping the call in a timeout guarantees it
+  settles one way or the other, so the fallback path below always fires.
 - On failure, a tile falls back to its last successfully-fetched value
   (cached in `localStorage`) so a temporary outage doesn't blank a tile.
 - If there's no cached value either (e.g. first load with no network), the
@@ -71,10 +86,24 @@ This is meant to run unattended for weeks. Every fetch is wrapped in
 
 Refresh cadence: weather hourly, sun/moon/planets hourly (cheap local
 calc; the daylight countdown itself re-ticks every second off cached
-sunrise/sunset times, no recomputation), next-event daily, news every 15
-min (headlines rotate every 8s). The astronomy tiles have nothing to
-fail over to begin with — they're local math, not fetches — so they stay
-correct even with no network at all.
+sunrise/sunset times, no recomputation), next-event daily. The astronomy
+tiles have nothing to fail over to begin with — they're local math, not
+fetches — so they stay correct even with no network at all.
+
+## Screen wake lock
+
+The page requests the [Screen Wake Lock
+API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)
+(`navigator.wakeLock.request('screen')`) on load, and re-requests it
+whenever the page becomes visible again — some browsers silently release
+the lock when a tab is backgrounded and don't restore it automatically.
+If the API isn't available at all, the request is a no-op (feature-detected,
+never throws).
+
+Treat this as a first layer, not the only one: **also enable Fully Kiosk
+Browser's own "Keep Screen On" setting** as a belt-and-suspenders backup,
+in case the Wake Lock API isn't fully supported in that particular WebView
+build. Both can be on at once with no conflict.
 
 ## Deploying
 
@@ -141,12 +170,18 @@ Everything lives in `kiosk/index.html`:
   `<script>` block, and the `CAHUITA, CR` label in the weather tile's
   `.tile-head`. This also moves the Sun/Moon/Planets calculations, since
   they all read the same two constants.
-- **News source** — change the RSS URL passed to rss2json in `fetchNews()`
-  (any public RSS feed works — swap in Reuters World, a local paper, etc.).
 - **Eclipse table** — extend the `ECLIPSES` array once its dates run out
   (see "How the astronomy tiles work" above).
 - **Colors/accents** — the CSS custom properties at the top of `<style>`
-  (`--green`, `--cyan`, `--amber`, `--magenta`) control the palette; each
-  tile picks one via its `--accent` override.
+  control the palette: `--copper` is the primary phosphor color used
+  everywhere by default, `--pink` and `--cream` are the two deliberate
+  exceptions (Clock and Moon respectively, each overriding specific rules
+  rather than the shared defaults), and `--cyan`/`--amber`/`--magenta` are
+  the secondary per-tile accents each tile picks via its `--accent`
+  override. `--copper-dim`/`--cream-dim` are the dimmed variants used for
+  secondary/label text.
+- **Fetch timeout** — the `12000` (ms) argument to `fetchWithTimeout` in
+  the weather fetch; raise it if you're on a persistently slow connection
+  and 12s is triggering false "stale" states.
 - **Refresh intervals** — each data source calls its own
   `setInterval(fn, ms)` near the bottom of the script.
