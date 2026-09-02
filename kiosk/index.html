@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>kiosk — retro terminal dashboard</title>
+<meta name="description" content="A retro CRT-terminal dashboard for a wall-mounted kiosk display.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='20' fill='%2333ff66'%3E%3E_%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000000;
+    --green:#33ff66;
+    --green-dim:#1c8a3a;
+    --cyan:#4fb3bf;
+    --amber:#d99a3d;
+    --magenta:#b566a3;
+    --border:#1f4d2c;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html,body{
+    width:100%; height:100%;
+    background:var(--bg);
+    overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  body{
+    font-family:'JetBrains Mono', 'Space Mono', monospace;
+    color:var(--green);
+    font-weight:400;
+  }
+
+  /* ---------- layout ---------- */
+
+  .dashboard{
+    width:100vw; height:100vh;
+    display:grid;
+    grid-template-rows: 17vh 1fr;
+    gap:10px;
+    padding:10px;
+  }
+
+  .top-row{
+    display:grid;
+    grid-template-columns: 0.85fr 1.3fr 1fr;
+    gap:10px;
+  }
+
+  .bottom-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap:10px;
+  }
+
+  /* ---------- tiles ---------- */
+
+  .tile{
+    position:relative;
+    border:1px solid var(--accent, var(--border));
+    background:#000;
+    padding:10px 16px 14px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .tile-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-size:15px;
+    letter-spacing:3px;
+    color:var(--accent, var(--green));
+    text-transform:uppercase;
+    margin-bottom:6px;
+    text-shadow:0 0 5px currentColor;
+  }
+
+  .tile-head .tag{
+    font-size:11px;
+    opacity:0.55;
+    letter-spacing:1px;
+  }
+
+  .ascii-div{
+    overflow:hidden;
+    white-space:nowrap;
+    color:var(--accent, var(--green));
+    opacity:0.35;
+    font-size:14px;
+    line-height:1;
+    margin-bottom:8px;
+  }
+  .ascii-div::before{
+    content:"────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
+  }
+
+  .tile-body{
+    flex:1;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+
+  /* ---------- clock ---------- */
+
+  #tile-clock{ --accent:var(--green); }
+  #tile-clock .tile-body{ align-items:center; }
+  .clock-time{
+    font-size:76px;
+    font-weight:700;
+    letter-spacing:4px;
+    text-shadow:0 0 10px rgba(51,255,102,0.55);
+    font-variant-numeric: tabular-nums;
+  }
+  .clock-cursor{ animation: blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* ---------- weather ---------- */
+
+  #tile-weather{ --accent:var(--cyan); }
+  .wx-now{ display:flex; align-items:baseline; gap:18px; }
+  .wx-temp{
+    font-size:56px; font-weight:700; color:var(--green);
+    text-shadow:0 0 8px rgba(51,255,102,0.45);
+  }
+  .wx-cond{ font-size:18px; color:var(--cyan); letter-spacing:1px; }
+  .wx-sub{ margin-top:10px; font-size:14px; color:var(--green-dim); line-height:1.6; }
+  .wx-fc-row{ display:flex; gap:26px; margin-top:4px; }
+  .wx-fc-day{ font-size:13px; color:var(--cyan); }
+  .wx-fc-day b{ color:var(--green); display:block; font-size:16px; }
+
+  /* ---------- moon / uv ---------- */
+
+  #tile-moonuv{ --accent:var(--amber); }
+  .moonuv-row{ display:flex; align-items:center; gap:22px; }
+  .moon-visual{
+    width:64px; height:64px; min-width:64px;
+    border-radius:50%;
+    border:1px solid var(--amber);
+    background:#050505;
+    box-shadow: inset 0 0 0 0 var(--green);
+  }
+  .moon-info{ font-size:14px; line-height:1.7; }
+  .moon-info .phase-name{ color:var(--green); font-size:16px; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
+  .moon-info .dim{ color:var(--amber); opacity:0.85; }
+  .uv-row{ margin-top:12px; font-size:15px; }
+  .uv-val{ color:var(--amber); font-weight:700; font-size:22px; text-shadow:0 0 6px rgba(217,154,61,0.4); }
+
+  /* ---------- news ---------- */
+
+  #tile-news{ --accent:var(--green); }
+  .news-headline{
+    font-size:26px;
+    line-height:1.5;
+    color:var(--green);
+    text-shadow:0 0 5px rgba(51,255,102,0.3);
+  }
+  .news-source{ margin-top:14px; font-size:13px; color:var(--green-dim); letter-spacing:1px; }
+  .news-dots{ position:absolute; bottom:12px; right:16px; font-size:12px; color:var(--green-dim); letter-spacing:3px; }
+
+  /* ---------- quote ---------- */
+
+  #tile-quote{ --accent:var(--magenta); }
+  .quote-text{
+    font-size:24px;
+    line-height:1.55;
+    color:var(--green);
+    text-shadow:0 0 5px rgba(51,255,102,0.3);
+  }
+  .quote-text::before{ content:"\201C"; color:var(--magenta); }
+  .quote-text::after{ content:"\201D"; color:var(--magenta); }
+  .quote-author{ margin-top:14px; font-size:15px; color:var(--magenta); text-align:right; }
+  .quote-author::before{ content:"— "; }
+
+  /* ---------- history ---------- */
+
+  #tile-history{ --accent:var(--cyan); }
+  .hist-item{ font-size:17px; line-height:1.5; margin-bottom:12px; color:var(--green); }
+  .hist-item .yr{ color:var(--cyan); font-weight:700; margin-right:8px; }
+
+  /* ---------- joke ---------- */
+
+  #tile-joke{ --accent:var(--amber); }
+  .joke-wrap{ display:flex; align-items:center; gap:20px; }
+  .joke-text{ font-size:21px; line-height:1.5; color:var(--green); text-shadow:0 0 5px rgba(51,255,102,0.3); }
+
+  .cat{ width:96px; height:88px; min-width:96px; }
+  .cat .eye{ transform-origin:center; animation: cat-blink 5s infinite; }
+  .cat .eye.right{ animation-delay:0.08s; }
+  @keyframes cat-blink{
+    0%, 92%, 100%{ transform:scaleY(1); }
+    95%{ transform:scaleY(0.08); }
+  }
+  .cat .mouth-closed{ display:block; }
+  .cat .mouth-open{ display:none; }
+  .cat.talk .mouth-closed{ display:none; }
+  .cat.talk .mouth-open{ display:block; }
+
+  /* ---------- CRT overlay effects ---------- */
+
+  .scanlines{
+    position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.045) 0px,
+      rgba(255,255,255,0.045) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode:overlay;
+    animation: scan 6s steps(40) infinite;
+  }
+  @keyframes scan{
+    from{ background-position-y:0; }
+    to{ background-position-y:120px; }
+  }
+
+  .vignette{
+    position:fixed; inset:0; pointer-events:none; z-index:9998;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.65) 100%);
+  }
+
+  .stale{ opacity:0.5; }
+</style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<div class="dashboard">
+
+  <div class="top-row">
+
+    <div class="tile" id="tile-clock">
+      <div class="tile-head">CLOCK <span class="tag">LOCAL</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="clock-time" id="clock-time">--<span class="clock-cursor">:</span>--:--</div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-weather">
+      <div class="tile-head">WEATHER <span class="tag">CAHUITA, CR</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="wx-now">
+          <div class="wx-temp" id="wx-temp">--&deg;</div>
+          <div class="wx-cond" id="wx-cond">—</div>
+        </div>
+        <div class="wx-sub" id="wx-humidity">HUMIDITY —</div>
+        <div class="wx-fc-row" id="wx-forecast">
+          <div class="wx-fc-day"><b>—</b>TOMORROW</div>
+          <div class="wx-fc-day"><b>—</b>DAY 3</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-moonuv">
+      <div class="tile-head">MOON / UV <span class="tag">INDEX</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="moonuv-row">
+          <div class="moon-visual" id="moon-visual"></div>
+          <div class="moon-info">
+            <span class="phase-name" id="moon-phase-name">—</span>
+            <span class="dim" id="moon-illum">— % illuminated</span>
+          </div>
+        </div>
+        <div class="uv-row">UV INDEX &nbsp;<span class="uv-val" id="uv-val">—</span> <span id="uv-label"></span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="bottom-grid">
+
+    <div class="tile" id="tile-news">
+      <div class="tile-head">HEADLINES <span class="tag" id="news-tag">WORLD</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="news-headline" id="news-headline">Loading headlines…</div>
+        <div class="news-source" id="news-source">—</div>
+      </div>
+      <div class="news-dots" id="news-dots"></div>
+    </div>
+
+    <div class="tile" id="tile-quote">
+      <div class="tile-head">QUOTE OF THE DAY</div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="quote-text" id="quote-text">Loading…</div>
+        <div class="quote-author" id="quote-author"></div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-history">
+      <div class="tile-head">ON THIS DAY <span class="tag" id="history-date">—</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body" id="history-body">
+        <div class="hist-item">Loading…</div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-joke">
+      <div class="tile-head">JOKE BOX</div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="joke-wrap">
+          <svg class="cat" id="cat-svg" viewBox="0 0 100 92" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- ears -->
+            <polygon points="18,30 30,4 40,32" fill="#000" stroke="#d99a3d" stroke-width="2"/>
+            <polygon points="82,30 70,4 60,32" fill="#000" stroke="#d99a3d" stroke-width="2"/>
+            <!-- head -->
+            <circle cx="50" cy="50" r="34" fill="#000" stroke="#33ff66" stroke-width="2"/>
+            <!-- eyes -->
+            <ellipse class="eye left" cx="37" cy="46" rx="5" ry="7" fill="#33ff66"/>
+            <ellipse class="eye right" cx="63" cy="46" rx="5" ry="7" fill="#33ff66"/>
+            <!-- nose -->
+            <polygon points="50,58 45,64 55,64" fill="#d99a3d"/>
+            <!-- mouth: closed (default) -->
+            <path class="mouth-closed" d="M50,64 Q42,70 34,64 M50,64 Q58,70 66,64" stroke="#33ff66" stroke-width="2" fill="none"/>
+            <!-- mouth: open (talk state) -->
+            <path class="mouth-open" d="M40,64 Q50,80 60,64 Z" stroke="#33ff66" stroke-width="2" fill="#0b3d1c"/>
+            <!-- whiskers -->
+            <line x1="6" y1="52" x2="26" y2="50" stroke="#1c8a3a" stroke-width="1"/>
+            <line x1="6" y1="60" x2="26" y2="58" stroke="#1c8a3a" stroke-width="1"/>
+            <line x1="94" y1="52" x2="74" y2="50" stroke="#1c8a3a" stroke-width="1"/>
+            <line x1="94" y1="60" x2="74" y2="58" stroke="#1c8a3a" stroke-width="1"/>
+          </svg>
+          <div class="joke-text" id="joke-text">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var LAT = 9.75, LON = -82.85;
+
+  /* ================= CLOCK ================= */
+  function pad(n){ return n < 10 ? "0"+n : ""+n; }
+  function tickClock(){
+    var d = new Date();
+    document.getElementById("clock-time").innerHTML =
+      pad(d.getHours()) + '<span class="clock-cursor">:</span>' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* ================= WEATHER + UV ================= */
+  var WMO = {
+    0:"CLEAR", 1:"MOSTLY CLEAR", 2:"P.CLOUDY", 3:"OVERCAST",
+    45:"FOG", 48:"FOG",
+    51:"DRIZZLE", 53:"DRIZZLE", 55:"DRIZZLE",
+    56:"FRZ DRIZZLE", 57:"FRZ DRIZZLE",
+    61:"LIGHT RAIN", 63:"RAIN", 65:"HEAVY RAIN",
+    66:"FRZ RAIN", 67:"FRZ RAIN",
+    71:"LIGHT SNOW", 73:"SNOW", 75:"HEAVY SNOW", 77:"SNOW GRAINS",
+    80:"RAIN SHOWERS", 81:"RAIN SHOWERS", 82:"HEAVY SHOWERS",
+    85:"SNOW SHOWERS", 86:"SNOW SHOWERS",
+    95:"THUNDERSTORM", 96:"STORM+HAIL", 99:"STORM+HAIL"
+  };
+  function wxLabel(code){ return WMO[code] || "UNKNOWN"; }
+  function uvLabel(uv){
+    if (uv == null) return "";
+    if (uv < 3) return "(LOW)";
+    if (uv < 6) return "(MODERATE)";
+    if (uv < 8) return "(HIGH)";
+    if (uv < 11) return "(VERY HIGH)";
+    return "(EXTREME)";
+  }
+  function dayName(iso, offset){
+    var d = new Date(iso + "T12:00:00");
+    d.setDate(d.getDate() + offset);
+    return d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  }
+
+  function setStale(el, isStale){
+    if (!el) return;
+    el.classList.toggle("stale", !!isStale);
+  }
+
+  function fetchWeather(){
+    var url = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
+      "&current=temperature_2m,weather_code,relative_humidity_2m" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max" +
+      "&timezone=auto&forecast_days=3";
+
+    fetch(url)
+      .then(function(r){ if (!r.ok) throw new Error("wx http " + r.status); return r.json(); })
+      .then(function(data){
+        var cur = data.current, daily = data.daily;
+        document.getElementById("wx-temp").innerHTML = Math.round(cur.temperature_2m) + "&deg;C";
+        document.getElementById("wx-cond").textContent = wxLabel(cur.weather_code);
+        document.getElementById("wx-humidity").textContent = "HUMIDITY " + cur.relative_humidity_2m + "%";
+
+        var fcHtml = "";
+        for (var i = 1; i <= 2; i++){
+          if (!daily.time[i]) continue;
+          fcHtml += '<div class="wx-fc-day"><b>' + Math.round(daily.temperature_2m_max[i]) + '&deg;/' +
+            Math.round(daily.temperature_2m_min[i]) + '&deg;</b>' + dayName(daily.time[0], i) + '</div>';
+        }
+        document.getElementById("wx-forecast").innerHTML = fcHtml;
+        setStale(document.getElementById("tile-weather"), false);
+
+        var uv = daily.uv_index_max && daily.uv_index_max[0];
+        var uvEl = document.getElementById("uv-val");
+        uvEl.textContent = (uv != null) ? uv.toFixed(1) : "—";
+        document.getElementById("uv-label").textContent = uvLabel(uv);
+        setStale(document.getElementById("tile-moonuv"), false);
+
+        try {
+          localStorage.setItem("kiosk-wx", JSON.stringify({ t: Date.now(), data: data }));
+        } catch(e){}
+      })
+      .catch(function(err){
+        console.warn("weather fetch failed", err);
+        setStale(document.getElementById("tile-weather"), true);
+        setStale(document.getElementById("tile-moonuv"), true);
+      });
+  }
+
+  /* ================= MOON PHASE (local calc) ================= */
+  var MOON_NAMES = [
+    [0.02, "NEW MOON"], [0.24, "WAXING CRESCENT"], [0.26, "FIRST QUARTER"],
+    [0.48, "WAXING GIBBOUS"], [0.52, "FULL MOON"], [0.74, "WANING GIBBOUS"],
+    [0.76, "LAST QUARTER"], [0.98, "WANING CRESCENT"], [1.01, "NEW MOON"]
+  ];
+  function moonPhaseName(frac){
+    for (var i = 0; i < MOON_NAMES.length; i++){
+      if (frac <= MOON_NAMES[i][0]) return MOON_NAMES[i][1];
+    }
+    return "NEW MOON";
+  }
+  function computeMoon(date){
+    var synodic = 29.530588853;
+    var knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
+    var diffDays = (date.getTime() - knownNewMoon) / 86400000;
+    var frac = (diffDays % synodic) / synodic;
+    if (frac < 0) frac += 1;
+    var illum = (1 - Math.cos(2 * Math.PI * frac)) / 2;
+    return { frac: frac, illum: illum, name: moonPhaseName(frac) };
+  }
+  function renderMoon(){
+    var m = computeMoon(new Date());
+    document.getElementById("moon-phase-name").textContent = m.name;
+    document.getElementById("moon-illum").textContent = Math.round(m.illum * 100) + "% illuminated";
+
+    var diameter = 64;
+    var offset;
+    if (m.frac <= 0.5){
+      offset = diameter * (1 - 2 * m.frac);
+    } else {
+      offset = -diameter * (2 * m.frac - 1);
+    }
+    var visual = document.getElementById("moon-visual");
+    visual.style.boxShadow = "inset " + offset.toFixed(1) + "px 0 0 0 #33ff66";
+  }
+  renderMoon();
+  setInterval(renderMoon, 3600000);
+
+  fetchWeather();
+  setInterval(fetchWeather, 3600000);
+
+  /* ================= NEWS ================= */
+  var newsItems = [];
+  var newsIndex = 0;
+  var newsFeedName = "BBC WORLD";
+
+  function renderNewsItem(){
+    var el = document.getElementById("news-headline");
+    var dotsEl = document.getElementById("news-dots");
+    if (!newsItems.length){
+      el.textContent = "— no headlines available —";
+      dotsEl.textContent = "";
+      return;
+    }
+    el.textContent = newsItems[newsIndex];
+    document.getElementById("news-source").textContent = newsFeedName + " · " + (newsIndex + 1) + "/" + newsItems.length;
+    var dots = "";
+    for (var i = 0; i < newsItems.length; i++) dots += (i === newsIndex ? "●" : "○");
+    dotsEl.textContent = dots;
+  }
+
+  function fetchNews(){
+    var rssUrl = encodeURIComponent("https://feeds.bbci.co.uk/news/world/rss.xml");
+    var url = "https://api.rss2json.com/v1/api.json?rss_url=" + rssUrl;
+
+    fetch(url)
+      .then(function(r){ if (!r.ok) throw new Error("news http " + r.status); return r.json(); })
+      .then(function(data){
+        if (!data.items || !data.items.length) throw new Error("no items");
+        var items = data.items.slice(0, 4).map(function(it){ return it.title; });
+        newsItems = items;
+        newsIndex = 0;
+        renderNewsItem();
+        setStale(document.getElementById("tile-news"), false);
+        try { localStorage.setItem("kiosk-news", JSON.stringify(items)); } catch(e){}
+      })
+      .catch(function(err){
+        console.warn("news fetch failed", err);
+        setStale(document.getElementById("tile-news"), true);
+        if (!newsItems.length){
+          try {
+            var cached = JSON.parse(localStorage.getItem("kiosk-news") || "null");
+            if (cached && cached.length){ newsItems = cached; renderNewsItem(); return; }
+          } catch(e){}
+          document.getElementById("news-headline").textContent = "—";
+          document.getElementById("news-source").textContent = "—";
+        }
+      });
+  }
+  fetchNews();
+  setInterval(fetchNews, 900000);
+  setInterval(function(){
+    if (!newsItems.length) return;
+    newsIndex = (newsIndex + 1) % newsItems.length;
+    renderNewsItem();
+  }, 8000);
+
+  /* ================= QUOTE OF THE DAY ================= */
+  var FALLBACK_QUOTES = [
+    { q: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
+    { q: "Simplicity is the ultimate sophistication.", a: "Leonardo da Vinci" },
+    { q: "What we think, we become.", a: "Buddha" }
+  ];
+
+  function renderQuote(q, a){
+    document.getElementById("quote-text").textContent = q;
+    document.getElementById("quote-author").textContent = a || "unknown";
+  }
+
+  function fetchQuote(){
+    fetch("https://zenquotes.io/api/today")
+      .then(function(r){ if (!r.ok) throw new Error("zq http " + r.status); return r.json(); })
+      .then(function(data){
+        if (!data || !data[0]) throw new Error("empty");
+        renderQuote(data[0].q, data[0].a);
+        setStale(document.getElementById("tile-quote"), false);
+        try { localStorage.setItem("kiosk-quote", JSON.stringify(data[0])); } catch(e){}
+      })
+      .catch(function(){
+        return fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://zenquotes.io/api/today"))
+          .then(function(r){ if (!r.ok) throw new Error("proxy http " + r.status); return r.json(); })
+          .then(function(data){
+            if (!data || !data[0]) throw new Error("empty");
+            renderQuote(data[0].q, data[0].a);
+            setStale(document.getElementById("tile-quote"), false);
+            try { localStorage.setItem("kiosk-quote", JSON.stringify(data[0])); } catch(e){}
+          });
+      })
+      .catch(function(err){
+        console.warn("quote fetch failed", err);
+        setStale(document.getElementById("tile-quote"), true);
+        try {
+          var cached = JSON.parse(localStorage.getItem("kiosk-quote") || "null");
+          if (cached){ renderQuote(cached.q, cached.a); return; }
+        } catch(e){}
+        var pick = FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
+        renderQuote(pick.q, pick.a);
+      });
+  }
+  fetchQuote();
+  setInterval(fetchQuote, 86400000);
+
+  /* ================= ON THIS DAY ================= */
+  function fetchHistory(){
+    var now = new Date();
+    var mm = pad(now.getMonth() + 1);
+    var dd = pad(now.getDate());
+    document.getElementById("history-date").textContent =
+      now.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+
+    var url = "https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/selected/" + mm + "/" + dd;
+
+    fetch(url)
+      .then(function(r){ if (!r.ok) throw new Error("hist http " + r.status); return r.json(); })
+      .then(function(data){
+        var events = data.selected || data.events || [];
+        if (!events.length) throw new Error("no events");
+        var picked = events.slice(0, 3);
+        var html = picked.map(function(ev){
+          return '<div class="hist-item"><span class="yr">' + ev.year + '</span>' + ev.text + '</div>';
+        }).join("");
+        document.getElementById("history-body").innerHTML = html;
+        setStale(document.getElementById("tile-history"), false);
+        try { localStorage.setItem("kiosk-history", JSON.stringify(picked)); } catch(e){}
+      })
+      .catch(function(err){
+        console.warn("history fetch failed", err);
+        setStale(document.getElementById("tile-history"), true);
+        try {
+          var cached = JSON.parse(localStorage.getItem("kiosk-history") || "null");
+          if (cached && cached.length){
+            var html = cached.map(function(ev){
+              return '<div class="hist-item"><span class="yr">' + ev.year + '</span>' + ev.text + '</div>';
+            }).join("");
+            document.getElementById("history-body").innerHTML = html;
+            return;
+          }
+        } catch(e){}
+        document.getElementById("history-body").innerHTML = '<div class="hist-item">—</div>';
+      });
+  }
+  fetchHistory();
+  setInterval(fetchHistory, 86400000);
+
+  /* ================= JOKE + CAT ================= */
+  function talkCat(){
+    var cat = document.getElementById("cat-svg");
+    cat.classList.add("talk");
+    setTimeout(function(){ cat.classList.remove("talk"); }, 900);
+  }
+
+  function fetchJoke(){
+    fetch("https://icanhazdadjoke.com/", { headers: { "Accept": "application/json" } })
+      .then(function(r){ if (!r.ok) throw new Error("joke http " + r.status); return r.json(); })
+      .then(function(data){
+        if (!data.joke) throw new Error("empty joke");
+        document.getElementById("joke-text").textContent = data.joke;
+        setStale(document.getElementById("tile-joke"), false);
+        talkCat();
+        try { localStorage.setItem("kiosk-joke", data.joke); } catch(e){}
+      })
+      .catch(function(err){
+        console.warn("joke fetch failed", err);
+        setStale(document.getElementById("tile-joke"), true);
+        try {
+          var cached = localStorage.getItem("kiosk-joke");
+          if (cached){ document.getElementById("joke-text").textContent = cached; return; }
+        } catch(e){}
+        document.getElementById("joke-text").textContent = "—";
+      });
+  }
+  fetchJoke();
+  setInterval(fetchJoke, 240000);
+
+  /* ================= INIT FROM CACHE (instant paint before first fetch) ================= */
+  (function primeFromCache(){
+    try {
+      var news = JSON.parse(localStorage.getItem("kiosk-news") || "null");
+      if (news && news.length){ newsItems = news; renderNewsItem(); }
+    } catch(e){}
+    try {
+      var quote = JSON.parse(localStorage.getItem("kiosk-quote") || "null");
+      if (quote) renderQuote(quote.q, quote.a);
+    } catch(e){}
+    try {
+      var joke = localStorage.getItem("kiosk-joke");
+      if (joke) document.getElementById("joke-text").textContent = joke;
+    } catch(e){}
+  })();
+
+})();
+</script>
+</body>
+</html>
