@@ -41,21 +41,26 @@
   .dashboard{
     width:100vw; height:100vh;
     display:grid;
-    grid-template-rows: 19vh 1fr;
+    grid-template-rows: 18vh 20vh 1fr;
     gap:0.55vw;
     padding:0.55vw;
   }
 
-  .top-row{
+  .row-top{
     display:grid;
-    grid-template-columns: 0.85fr 1.3fr 1fr;
+    grid-template-columns: 0.85fr 1.2fr 1fr;
     gap:0.55vw;
   }
 
-  .bottom-grid{
+  .row-astro{
+    display:grid;
+    grid-template-columns: 1.1fr 0.9fr 1fr;
+    gap:0.55vw;
+  }
+
+  .row-bottom{
     display:grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
     gap:0.55vw;
   }
 
@@ -75,8 +80,8 @@
     display:flex;
     justify-content:space-between;
     align-items:baseline;
-    font-size:1.15vw;
-    letter-spacing:0.14vw;
+    font-size:1.1vw;
+    letter-spacing:0.13vw;
     color:var(--accent, var(--green));
     text-transform:uppercase;
     margin-bottom:0.3vw;
@@ -84,7 +89,7 @@
   }
 
   .tile-head .tag{
-    font-size:1vw;
+    font-size:0.95vw;
     opacity:0.55;
     letter-spacing:0.05vw;
   }
@@ -94,7 +99,7 @@
     white-space:nowrap;
     color:var(--accent, var(--green));
     opacity:0.35;
-    font-size:1vw;
+    font-size:0.95vw;
     line-height:1;
     margin-bottom:0.35vw;
   }
@@ -133,77 +138,68 @@
     text-shadow:0 0 8px rgba(51,255,102,0.45);
   }
   .wx-cond{ font-size:1.25vw; color:var(--cyan); letter-spacing:0.05vw; }
-  .wx-sub{ margin-top:0.2vw; font-size:0.95vw; color:var(--green-dim); line-height:1.3; }
+  .wx-sub{ margin-top:0.15vw; font-size:0.9vw; color:var(--green-dim); line-height:1.2; }
+  .wx-sub b{ color:var(--green); font-weight:700; }
   .wx-fc-row{ display:flex; gap:1.35vw; margin-top:0.1vw; }
   .wx-fc-day{ font-size:0.95vw; color:var(--cyan); }
   .wx-fc-day b{ color:var(--green); display:block; font-size:1.15vw; }
 
-  /* ---------- moon / uv ---------- */
+  /* ---------- sun ---------- */
 
-  #tile-moonuv{ --accent:var(--amber); }
+  #tile-sun{ --accent:var(--amber); }
+  .sun-hero{
+    font-size:2.3vw; font-weight:700; color:var(--green);
+    text-shadow:0 0 8px rgba(51,255,102,0.45);
+    font-variant-numeric: tabular-nums;
+  }
+  .sun-hero-label{ font-size:0.78vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.25vw; }
+
+  /* ---------- moon ---------- */
+
+  #tile-moon{ --accent:var(--magenta); }
   .moonuv-row{ display:flex; align-items:center; gap:1.15vw; }
   .moon-visual{
-    width:3.6vw; aspect-ratio:1/1; min-width:3.6vw;
+    width:3.4vw; aspect-ratio:1/1; min-width:3.4vw;
     border-radius:50%;
-    border:1px solid var(--amber);
+    border:1px solid var(--magenta);
     background:#050505;
     box-shadow: inset 0 0 0 0 var(--green);
   }
-  .moon-info{ font-size:1vw; line-height:1.5; }
-  .moon-info .phase-name{ color:var(--green); font-size:1.2vw; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
-  .moon-info .dim{ color:var(--amber); opacity:0.85; }
-  .uv-row{ margin-top:0.4vw; font-size:1.05vw; }
-  .uv-val{ color:var(--amber); font-weight:700; font-size:1.5vw; text-shadow:0 0 6px rgba(217,154,61,0.4); }
+  .moon-info{ font-size:0.95vw; line-height:1.4; }
+  .moon-info .phase-name{ color:var(--green); font-size:1.1vw; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
+  .moon-info .dim{ color:var(--magenta); opacity:0.85; }
+
+  /* ---------- planets ---------- */
+
+  #tile-planets{ --accent:var(--cyan); }
+  .planet-line{ font-size:1vw; line-height:1.55; color:var(--green); }
+  .planet-line b{ color:var(--cyan); margin-right:0.35vw; }
+  .planet-line.dim{ color:var(--green-dim); font-size:0.95vw; }
+
+  /* ---------- next event ---------- */
+
+  #tile-nextevent{ --accent:var(--amber); }
+  .ne-line{ font-size:0.95vw; line-height:1.65; color:var(--green); }
+  .ne-label{ color:var(--cyan); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
+  .ne-line b{ color:var(--green); font-weight:700; }
+  .ne-tag{ color:var(--magenta); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
 
   /* ---------- news ---------- */
 
   #tile-news{ --accent:var(--green); }
   .news-headline{
-    font-size:2.2vw;
+    font-size:2vw;
     line-height:1.5;
     color:var(--green);
     text-shadow:0 0 5px rgba(51,255,102,0.3);
   }
-  .news-source{ margin-top:0.75vw; font-size:1.15vw; color:var(--green-dim); letter-spacing:0.05vw; }
-  .news-dots{ position:absolute; bottom:0.65vw; right:0.85vw; font-size:1vw; color:var(--green-dim); letter-spacing:0.16vw; }
+  .news-source{ margin-top:0.7vw; font-size:1.05vw; color:var(--green-dim); letter-spacing:0.05vw; }
+  .news-dots{ position:absolute; bottom:0.6vw; right:0.85vw; font-size:0.9vw; color:var(--green-dim); letter-spacing:0.16vw; }
 
-  /* ---------- quote ---------- */
+  /* ---------- critters (cat & lizard chase) ---------- */
 
-  #tile-quote{ --accent:var(--magenta); }
-  .quote-text{
-    font-size:2vw;
-    line-height:1.55;
-    color:var(--green);
-    text-shadow:0 0 5px rgba(51,255,102,0.3);
-  }
-  .quote-text::before{ content:"\201C"; color:var(--magenta); }
-  .quote-text::after{ content:"\201D"; color:var(--magenta); }
-  .quote-author{ margin-top:0.75vw; font-size:1.3vw; color:var(--magenta); text-align:right; }
-  .quote-author::before{ content:"— "; }
-
-  /* ---------- history ---------- */
-
-  #tile-history{ --accent:var(--cyan); }
-  .hist-item{ font-size:1.45vw; line-height:1.5; margin-bottom:0.65vw; color:var(--green); }
-  .hist-item .yr{ color:var(--cyan); font-weight:700; margin-right:0.4vw; }
-
-  /* ---------- joke ---------- */
-
-  #tile-joke{ --accent:var(--amber); }
-  .joke-wrap{ display:flex; align-items:center; gap:1vw; }
-  .joke-text{ font-size:1.8vw; line-height:1.5; color:var(--green); text-shadow:0 0 5px rgba(51,255,102,0.3); }
-
-  .cat{ width:8vw; aspect-ratio:96/88; min-width:8vw; }
-  .cat .eye{ transform-origin:center; animation: cat-blink 5s infinite; }
-  .cat .eye.right{ animation-delay:0.08s; }
-  @keyframes cat-blink{
-    0%, 92%, 100%{ transform:scaleY(1); }
-    95%{ transform:scaleY(0.08); }
-  }
-  .cat .mouth-closed{ display:block; }
-  .cat .mouth-open{ display:none; }
-  .cat.talk .mouth-closed{ display:none; }
-  .cat.talk .mouth-open{ display:block; }
+  #tile-critters{ --accent:var(--magenta); }
+  #chase-canvas{ display:block; width:100%; height:100%; }
 
   /* ---------- CRT overlay effects ---------- */
 
@@ -240,7 +236,7 @@
 
 <div class="dashboard">
 
-  <div class="top-row">
+  <div class="row-top">
 
     <div class="tile" id="tile-clock">
       <div class="tile-head">CLOCK <span class="tag">LOCAL</span></div>
@@ -266,24 +262,58 @@
       </div>
     </div>
 
-    <div class="tile" id="tile-moonuv">
-      <div class="tile-head">MOON / UV <span class="tag">INDEX</span></div>
+    <div class="tile" id="tile-sun">
+      <div class="tile-head">SUN</div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="sun-hero" id="sun-daylight">--:--:--</div>
+        <div class="sun-hero-label" id="sun-daylight-label">DAYLIGHT REMAINING</div>
+        <div class="wx-sub">RISE <b id="sun-rise">--:--</b> &nbsp; SET <b id="sun-set">--:--</b></div>
+        <div class="wx-sub">SOLAR NOON <b id="sun-noon">--:--</b></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="row-astro">
+
+    <div class="tile" id="tile-moon">
+      <div class="tile-head">MOON</div>
       <div class="ascii-div"></div>
       <div class="tile-body">
         <div class="moonuv-row">
           <div class="moon-visual" id="moon-visual"></div>
           <div class="moon-info">
             <span class="phase-name" id="moon-phase-name">—</span>
-            <span class="dim" id="moon-illum">— % illuminated</span>
+            <span class="dim" id="moon-illum">—% illuminated</span>
           </div>
         </div>
-        <div class="uv-row">UV INDEX &nbsp;<span class="uv-val" id="uv-val">—</span> <span id="uv-label"></span></div>
+        <div class="wx-sub">RISE <b id="moon-rise">--:--</b> &nbsp; SET <b id="moon-set">--:--</b></div>
+        <div class="wx-sub">DISTANCE <b id="moon-dist">—</b> km</div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-planets">
+      <div class="tile-head">PLANETS <span class="tag">TONIGHT</span></div>
+      <div class="ascii-div"></div>
+      <div class="tile-body" id="planets-body">
+        <div class="planet-line dim">—</div>
+      </div>
+    </div>
+
+    <div class="tile" id="tile-nextevent">
+      <div class="tile-head">NEXT EVENT</div>
+      <div class="ascii-div"></div>
+      <div class="tile-body">
+        <div class="ne-line"><span class="ne-label">FULL MOON</span><b id="ne-full">—</b></div>
+        <div class="ne-line"><span class="ne-label">NEW MOON</span><b id="ne-new">—</b></div>
+        <div class="ne-line" id="ne-extra"></div>
       </div>
     </div>
 
   </div>
 
-  <div class="bottom-grid">
+  <div class="row-bottom">
 
     <div class="tile" id="tile-news">
       <div class="tile-head">HEADLINES <span class="tag" id="news-tag">WORLD</span></div>
@@ -295,51 +325,11 @@
       <div class="news-dots" id="news-dots"></div>
     </div>
 
-    <div class="tile" id="tile-quote">
-      <div class="tile-head">QUOTE OF THE DAY</div>
+    <div class="tile" id="tile-critters">
+      <div class="tile-head">CRITTERS</div>
       <div class="ascii-div"></div>
       <div class="tile-body">
-        <div class="quote-text" id="quote-text">Loading…</div>
-        <div class="quote-author" id="quote-author"></div>
-      </div>
-    </div>
-
-    <div class="tile" id="tile-history">
-      <div class="tile-head">ON THIS DAY <span class="tag" id="history-date">—</span></div>
-      <div class="ascii-div"></div>
-      <div class="tile-body" id="history-body">
-        <div class="hist-item">Loading…</div>
-      </div>
-    </div>
-
-    <div class="tile" id="tile-joke">
-      <div class="tile-head">JOKE BOX</div>
-      <div class="ascii-div"></div>
-      <div class="tile-body">
-        <div class="joke-wrap">
-          <svg class="cat" id="cat-svg" viewBox="0 0 100 92" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- ears -->
-            <polygon points="18,30 30,4 40,32" fill="#000" stroke="#d99a3d" stroke-width="2"/>
-            <polygon points="82,30 70,4 60,32" fill="#000" stroke="#d99a3d" stroke-width="2"/>
-            <!-- head -->
-            <circle cx="50" cy="50" r="34" fill="#000" stroke="#33ff66" stroke-width="2"/>
-            <!-- eyes -->
-            <ellipse class="eye left" cx="37" cy="46" rx="5" ry="7" fill="#33ff66"/>
-            <ellipse class="eye right" cx="63" cy="46" rx="5" ry="7" fill="#33ff66"/>
-            <!-- nose -->
-            <polygon points="50,58 45,64 55,64" fill="#d99a3d"/>
-            <!-- mouth: closed (default) -->
-            <path class="mouth-closed" d="M50,64 Q42,70 34,64 M50,64 Q58,70 66,64" stroke="#33ff66" stroke-width="2" fill="none"/>
-            <!-- mouth: open (talk state) -->
-            <path class="mouth-open" d="M40,64 Q50,80 60,64 Z" stroke="#33ff66" stroke-width="2" fill="#0b3d1c"/>
-            <!-- whiskers -->
-            <line x1="6" y1="52" x2="26" y2="50" stroke="#1c8a3a" stroke-width="1"/>
-            <line x1="6" y1="60" x2="26" y2="58" stroke="#1c8a3a" stroke-width="1"/>
-            <line x1="94" y1="52" x2="74" y2="50" stroke="#1c8a3a" stroke-width="1"/>
-            <line x1="94" y1="60" x2="74" y2="58" stroke="#1c8a3a" stroke-width="1"/>
-          </svg>
-          <div class="joke-text" id="joke-text">Loading…</div>
-        </div>
+        <canvas id="chase-canvas"></canvas>
       </div>
     </div>
 
@@ -353,8 +343,20 @@
 
   var LAT = 9.75, LON = -82.85;
 
-  /* ================= CLOCK ================= */
   function pad(n){ return n < 10 ? "0"+n : ""+n; }
+  function fmtTime(d){
+    if (!d || isNaN(d.getTime())) return "--:--";
+    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function setStale(el, isStale){
+    if (!el) return;
+    el.classList.toggle("stale", !!isStale);
+  }
+  function safeCall(fn){
+    try { fn(); } catch(e){ console.warn("kiosk: safeCall failed", e); }
+  }
+
+  /* ================= CLOCK ================= */
   function tickClock(){
     var d = new Date();
     document.getElementById("clock-time").innerHTML =
@@ -363,7 +365,7 @@
   tickClock();
   setInterval(tickClock, 1000);
 
-  /* ================= WEATHER + UV ================= */
+  /* ================= WEATHER ================= */
   var WMO = {
     0:"CLEAR", 1:"MOSTLY CLEAR", 2:"P.CLOUDY", 3:"OVERCAST",
     45:"FOG", 48:"FOG",
@@ -377,29 +379,16 @@
     95:"THUNDERSTORM", 96:"STORM+HAIL", 99:"STORM+HAIL"
   };
   function wxLabel(code){ return WMO[code] || "UNKNOWN"; }
-  function uvLabel(uv){
-    if (uv == null) return "";
-    if (uv < 3) return "(LOW)";
-    if (uv < 6) return "(MODERATE)";
-    if (uv < 8) return "(HIGH)";
-    if (uv < 11) return "(VERY HIGH)";
-    return "(EXTREME)";
-  }
   function dayName(iso, offset){
     var d = new Date(iso + "T12:00:00");
     d.setDate(d.getDate() + offset);
     return d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
   }
 
-  function setStale(el, isStale){
-    if (!el) return;
-    el.classList.toggle("stale", !!isStale);
-  }
-
   function fetchWeather(){
     var url = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
       "&current=temperature_2m,weather_code,relative_humidity_2m" +
-      "&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
       "&timezone=auto&forecast_days=3";
 
     fetch(url)
@@ -408,7 +397,7 @@
         var cur = data.current, daily = data.daily;
         document.getElementById("wx-temp").innerHTML = Math.round(cur.temperature_2m) + "&deg;C";
         document.getElementById("wx-cond").textContent = wxLabel(cur.weather_code);
-        document.getElementById("wx-humidity").textContent = "HUMIDITY " + cur.relative_humidity_2m + "%";
+        document.getElementById("wx-humidity").innerHTML = "HUMIDITY <b>" + cur.relative_humidity_2m + "%</b>";
 
         var fcHtml = "";
         for (var i = 1; i <= 2; i++){
@@ -419,12 +408,6 @@
         document.getElementById("wx-forecast").innerHTML = fcHtml;
         setStale(document.getElementById("tile-weather"), false);
 
-        var uv = daily.uv_index_max && daily.uv_index_max[0];
-        var uvEl = document.getElementById("uv-val");
-        uvEl.textContent = (uv != null) ? uv.toFixed(1) : "—";
-        document.getElementById("uv-label").textContent = uvLabel(uv);
-        setStale(document.getElementById("tile-moonuv"), false);
-
         try {
           localStorage.setItem("kiosk-wx", JSON.stringify({ t: Date.now(), data: data }));
         } catch(e){}
@@ -432,11 +415,341 @@
       .catch(function(err){
         console.warn("weather fetch failed", err);
         setStale(document.getElementById("tile-weather"), true);
-        setStale(document.getElementById("tile-moonuv"), true);
       });
   }
+  fetchWeather();
+  setInterval(fetchWeather, 3600000);
 
-  /* ================= MOON PHASE (local calc) ================= */
+  /* ================================================================ */
+  /* SunCalc.js — vendored (BSD-2-Clause, (c) 2011-2015 Vladimir       */
+  /* Agafonkin, https://github.com/mourner/suncalc) so sun/moon        */
+  /* positions work fully offline with no API calls.                  */
+  /* ================================================================ */
+  var SunCalc = (function(){
+    var PI = Math.PI, sin = Math.sin, cos = Math.cos, tan = Math.tan,
+        asin = Math.asin, atan = Math.atan2, acos = Math.acos, rad = PI / 180;
+
+    var dayMs = 1000 * 60 * 60 * 24, J1970 = 2440588, J2000 = 2451545;
+
+    function toJulian(date){ return date.valueOf() / dayMs - 0.5 + J1970; }
+    function fromJulian(j){ return new Date((j + 0.5 - J1970) * dayMs); }
+    function toDays(date){ return toJulian(date) - J2000; }
+
+    var e = rad * 23.4397;
+
+    function rightAscension(l, b){ return atan(sin(l) * cos(e) - tan(b) * sin(e), cos(l)); }
+    function declination(l, b){ return asin(sin(b) * cos(e) + cos(b) * sin(e) * sin(l)); }
+    function azimuth(H, phi, dec){ return atan(sin(H), cos(H) * sin(phi) - tan(dec) * cos(phi)); }
+    function altitude(H, phi, dec){ return asin(sin(phi) * sin(dec) + cos(phi) * cos(dec) * cos(H)); }
+    function siderealTime(d, lw){ return rad * (280.16 + 360.9856235 * d) - lw; }
+
+    function astroRefraction(h){
+      if (h < 0) h = 0;
+      return 0.0002967 / Math.tan(h + 0.00312536 / (h + 0.08901179));
+    }
+
+    function solarMeanAnomaly(d){ return rad * (357.5291 + 0.98560028 * d); }
+    function eclipticLongitude(M){
+      var C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M));
+      var P = rad * 102.9372;
+      return M + C + P + PI;
+    }
+    function sunCoords(d){
+      var M = solarMeanAnomaly(d), L = eclipticLongitude(M);
+      return { dec: declination(L, 0), ra: rightAscension(L, 0) };
+    }
+
+    var SunCalc = {};
+
+    SunCalc.getPosition = function(date, lat, lng){
+      var lw = rad * -lng, phi = rad * lat, d = toDays(date),
+          c = sunCoords(d), H = siderealTime(d, lw) - c.ra;
+      return { azimuth: azimuth(H, phi, c.dec), altitude: altitude(H, phi, c.dec) };
+    };
+
+    var times = [
+      [-0.833, 'sunrise', 'sunset'],
+      [-0.3, 'sunriseEnd', 'sunsetStart'],
+      [-6, 'dawn', 'dusk'],
+      [-12, 'nauticalDawn', 'nauticalDusk'],
+      [-18, 'nightEnd', 'night'],
+      [6, 'goldenHourEnd', 'goldenHour']
+    ];
+
+    var J0 = 0.0009;
+    function julianCycle(d, lw){ return Math.round(d - J0 - lw / (2 * PI)); }
+    function approxTransit(Ht, lw, n){ return J0 + (Ht + lw) / (2 * PI) + n; }
+    function solarTransitJ(ds, M, L){ return J2000 + ds + 0.0053 * sin(M) - 0.0069 * sin(2 * L); }
+    function hourAngle(h, phi, d){ return acos((sin(h) - sin(phi) * sin(d)) / (cos(phi) * cos(d))); }
+    function observerAngle(height){ return -2.076 * Math.sqrt(height) / 60; }
+
+    function getSetJ(h, lw, phi, dec, n, M, L){
+      var w = hourAngle(h, phi, dec), a = approxTransit(w, lw, n);
+      return solarTransitJ(a, M, L);
+    }
+
+    SunCalc.getTimes = function(date, lat, lng, height){
+      height = height || 0;
+      var lw = rad * -lng, phi = rad * lat, dh = observerAngle(height),
+          d = toDays(date), n = julianCycle(d, lw), ds = approxTransit(0, lw, n),
+          M = solarMeanAnomaly(ds), L = eclipticLongitude(M), dec = declination(L, 0),
+          Jnoon = solarTransitJ(ds, M, L),
+          i, len, time, h0, Jset, Jrise;
+
+      var result = { solarNoon: fromJulian(Jnoon), nadir: fromJulian(Jnoon - 0.5) };
+
+      for (i = 0, len = times.length; i < len; i += 1){
+        time = times[i];
+        h0 = (time[0] + dh) * rad;
+        Jset = getSetJ(h0, lw, phi, dec, n, M, L);
+        Jrise = Jnoon - (Jset - Jnoon);
+        result[time[1]] = fromJulian(Jrise);
+        result[time[2]] = fromJulian(Jset);
+      }
+      return result;
+    };
+
+    function moonCoords(d){
+      var L = rad * (218.316 + 13.176396 * d),
+          M = rad * (134.963 + 13.064993 * d),
+          F = rad * (93.272 + 13.229350 * d),
+          l = L + rad * 6.289 * sin(M),
+          b = rad * 5.128 * sin(F),
+          dt = 385001 - 20905 * cos(M);
+      return { ra: rightAscension(l, b), dec: declination(l, b), dist: dt };
+    }
+
+    SunCalc.getMoonPosition = function(date, lat, lng){
+      var lw = rad * -lng, phi = rad * lat, d = toDays(date),
+          c = moonCoords(d), H = siderealTime(d, lw) - c.ra,
+          h = altitude(H, phi, c.dec),
+          pa = atan(sin(H), tan(phi) * cos(c.dec) - sin(c.dec) * cos(H));
+      h = h + astroRefraction(h);
+      return { azimuth: azimuth(H, phi, c.dec), altitude: h, distance: c.dist, parallacticAngle: pa };
+    };
+
+    SunCalc.getMoonIllumination = function(date){
+      var d = toDays(date || new Date()), s = sunCoords(d), m = moonCoords(d),
+          sdist = 149598000,
+          phi = acos(sin(s.dec) * sin(m.dec) + cos(s.dec) * cos(m.dec) * cos(s.ra - m.ra)),
+          inc = atan(sdist * sin(phi), m.dist - sdist * cos(phi)),
+          angle = atan(cos(s.dec) * sin(s.ra - m.ra), sin(s.dec) * cos(m.dec) - cos(s.dec) * sin(m.dec) * cos(s.ra - m.ra));
+      return { fraction: (1 + cos(inc)) / 2, phase: 0.5 + 0.5 * inc * (angle < 0 ? -1 : 1) / PI, angle: angle };
+    };
+
+    function hoursLater(date, h){ return new Date(date.valueOf() + h * dayMs / 24); }
+
+    SunCalc.getMoonTimes = function(date, lat, lng, inUTC){
+      var t = new Date(date);
+      if (inUTC) t.setUTCHours(0, 0, 0, 0); else t.setHours(0, 0, 0, 0);
+
+      var hc = 0.133 * rad, h0 = SunCalc.getMoonPosition(t, lat, lng).altitude - hc,
+          h1, h2, rise, set, a, b, xe, ye, d, roots, x1, x2, dx;
+
+      for (var i = 1; i <= 24; i += 2){
+        h1 = SunCalc.getMoonPosition(hoursLater(t, i), lat, lng).altitude - hc;
+        h2 = SunCalc.getMoonPosition(hoursLater(t, i + 1), lat, lng).altitude - hc;
+        a = (h0 + h2) / 2 - h1;
+        b = (h2 - h0) / 2;
+        xe = -b / (2 * a);
+        ye = (a * xe + b) * xe + h1;
+        d = b * b - 4 * a * h1;
+        roots = 0;
+        if (d >= 0){
+          dx = Math.sqrt(d) / (Math.abs(a) * 2);
+          x1 = xe - dx; x2 = xe + dx;
+          if (Math.abs(x1) <= 1) roots++;
+          if (Math.abs(x2) <= 1) roots++;
+          if (x1 < -1) x1 = x2;
+        }
+        if (roots === 1){
+          if (h0 < 0) rise = i + x1; else set = i + x1;
+        } else if (roots === 2){
+          rise = i + (ye < 0 ? x2 : x1);
+          set = i + (ye < 0 ? x1 : x2);
+        }
+        if (rise && set) break;
+        h0 = h2;
+      }
+
+      var result = {};
+      if (rise) result.rise = hoursLater(t, rise);
+      if (set) result.set = hoursLater(t, set);
+      if (!rise && !set) result[ye > 0 ? 'alwaysUp' : 'alwaysDown'] = true;
+      return result;
+    };
+
+    // extra utility (not part of upstream SunCalc): converts an
+    // equatorial RA/Dec (in degrees) to local horizon alt/az (degrees),
+    // reused by the planetary-position module below.
+    SunCalc.equatorialToHorizontal = function(date, lat, lng, raDeg, decDeg){
+      var lw = rad * -lng, phi = rad * lat, d = toDays(date);
+      var H = siderealTime(d, lw) - raDeg * rad;
+      var decRad = decDeg * rad;
+      return {
+        altitude: altitude(H, phi, decRad) / rad,
+        azimuth: azimuth(H, phi, decRad) / rad
+      };
+    };
+
+    return SunCalc;
+  })();
+
+  /* ================================================================ */
+  /* Low-precision planetary positions (Mercury–Saturn), after the    */
+  /* classic public-domain orbital-element method described by Paul   */
+  /* Schlyter ("How to compute planetary positions"). Accurate to     */
+  /* roughly a degree — plenty for an "is it above the horizon"       */
+  /* visibility check, not for precision astrometry.                  */
+  /* ================================================================ */
+  var PLANET_ELEMENTS = {
+    mercury: { N:[48.3313,3.24587e-5], i:[7.0047,5.00e-8], w:[29.1241,1.01444e-5], a:0.387098, e:[0.205635,5.59e-10], M:[168.6562,4.0923344368] },
+    venus:   { N:[76.6799,2.46590e-5], i:[3.3946,2.75e-8],  w:[54.8910,1.38374e-5], a:0.723330, e:[0.006773,-1.302e-9], M:[48.0052,1.6021302244] },
+    mars:    { N:[49.5574,2.11081e-5], i:[1.8497,-1.78e-8],  w:[286.5016,2.92961e-5], a:1.523688, e:[0.093405,2.516e-9], M:[18.6021,0.5240207766] },
+    jupiter: { N:[100.4542,2.76854e-5], i:[1.3030,-1.557e-7], w:[273.8777,1.64505e-5], a:5.20256, e:[0.048498,4.469e-9], M:[19.8950,0.0830853001] },
+    saturn:  { N:[113.6634,2.38980e-5], i:[2.4886,-1.081e-7], w:[339.3939,2.97661e-5], a:9.55475, e:[0.055546,-9.499e-9], M:[316.9670,0.0334442282] }
+  };
+  var EARTH_ELEMENTS = { w:[282.9404,4.70935e-5], e:[0.016709,-1.151e-9], M:[356.0470,0.9856002585], a:1.000000 };
+  var PLANET_KEYS = ["mercury", "venus", "mars", "jupiter", "saturn"];
+
+  function toJulianDate(date){ return date.valueOf() / 86400000 - 0.5 + 2440588; }
+  function dsin(deg){ return Math.sin(deg * Math.PI / 180); }
+  function dcos(deg){ return Math.cos(deg * Math.PI / 180); }
+  function datan2deg(y, x){ return Math.atan2(y, x) * 180 / Math.PI; }
+  function norm360(x){ x = x % 360; return x < 0 ? x + 360 : x; }
+  function ep(pair, d){ return pair[0] + pair[1] * d; }
+
+  function solveKepler(Mdeg, e){
+    var E = Mdeg + (180 / Math.PI) * e * dsin(Mdeg);
+    for (var i = 0; i < 8; i++){
+      var dM = Mdeg - (E - (180 / Math.PI) * e * dsin(E));
+      var dE = dM / (1 - e * dcos(E));
+      E += dE;
+      if (Math.abs(dE) < 1e-6) break;
+    }
+    return E;
+  }
+
+  function heliocentricPos(elements, d, fixedNi){
+    var N = fixedNi ? fixedNi.N : ep(elements.N, d);
+    var i = fixedNi ? fixedNi.i : ep(elements.i, d);
+    var w = ep(elements.w, d);
+    var a = elements.a;
+    var e = ep(elements.e, d);
+    var M = norm360(ep(elements.M, d));
+    var E = solveKepler(M, e);
+    var xv = a * (dcos(E) - e);
+    var yv = a * (Math.sqrt(1 - e * e) * dsin(E));
+    var v = datan2deg(yv, xv);
+    var r = Math.sqrt(xv * xv + yv * yv);
+    var vw = v + w;
+    return {
+      x: r * (dcos(N) * dcos(vw) - dsin(N) * dsin(vw) * dcos(i)),
+      y: r * (dsin(N) * dcos(vw) + dcos(N) * dsin(vw) * dcos(i)),
+      z: r * (dsin(vw) * dsin(i))
+    };
+  }
+
+  function planetAltAz(key, date, lat, lon){
+    var d = toJulianDate(date) - 2451543.5;
+    var earth = heliocentricPos(EARTH_ELEMENTS, d, { N: 0, i: 0 });
+    var pl = heliocentricPos(PLANET_ELEMENTS[key], d, null);
+    var xg = pl.x - earth.x, yg = pl.y - earth.y, zg = pl.z - earth.z;
+    var ecl = 23.4393 - 3.563e-7 * d;
+    var xe = xg;
+    var ye = yg * dcos(ecl) - zg * dsin(ecl);
+    var ze = yg * dsin(ecl) + zg * dcos(ecl);
+    var raDeg = norm360(datan2deg(ye, xe));
+    var decDeg = datan2deg(ze, Math.sqrt(xe * xe + ye * ye));
+    return SunCalc.equatorialToHorizontal(date, lat, lon, raDeg, decDeg);
+  }
+
+  function compassFromSouthAz(azDeg){
+    var bearing = (azDeg + 180 + 360) % 360; // SunCalc measures azimuth from south; convert to N=0 bearing
+    var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    return dirs[Math.round(bearing / 45) % 8];
+  }
+
+  function updatePlanets(){
+    var now = new Date();
+    var sunAltDeg = SunCalc.getPosition(now, LAT, LON).altitude * 180 / Math.PI;
+    var body = document.getElementById("planets-body");
+
+    if (sunAltDeg > -6){
+      body.innerHTML = '<div class="planet-line dim">DAYTIME — CHECK BACK AFTER DUSK</div>';
+      return;
+    }
+
+    var visible = [];
+    PLANET_KEYS.forEach(function(key){
+      var pos = planetAltAz(key, now, LAT, LON);
+      if (pos.altitude > 5) visible.push({ name: key, alt: pos.altitude, az: pos.azimuth });
+    });
+
+    if (!visible.length){
+      body.innerHTML = '<div class="planet-line dim">— none visible now —</div>';
+      return;
+    }
+
+    visible.sort(function(a, b){ return b.alt - a.alt; });
+    body.innerHTML = visible.map(function(p){
+      return '<div class="planet-line"><b>' + p.name.toUpperCase() + '</b>' +
+        compassFromSouthAz(p.az) + ' ' + Math.round(p.alt) + '&deg;</div>';
+    }).join("");
+  }
+  safeCall(updatePlanets);
+  setInterval(function(){ safeCall(updatePlanets); }, 3600000);
+
+  /* ================= SUN PANEL ================= */
+  var sunTimesCache = null, nextSunriseCache = null;
+
+  function updateSunTimes(){
+    var now = new Date();
+    var t = SunCalc.getTimes(now, LAT, LON);
+    sunTimesCache = t;
+    document.getElementById("sun-rise").textContent = fmtTime(t.sunrise);
+    document.getElementById("sun-set").textContent = fmtTime(t.sunset);
+    document.getElementById("sun-noon").textContent = fmtTime(t.solarNoon);
+
+    if (now < t.sunrise){
+      nextSunriseCache = t.sunrise;
+    } else {
+      var t2 = SunCalc.getTimes(new Date(now.getTime() + 86400000), LAT, LON);
+      nextSunriseCache = t2.sunrise;
+    }
+  }
+  safeCall(updateSunTimes);
+  setInterval(function(){ safeCall(updateSunTimes); }, 3600000);
+
+  function fmtDuration(ms){
+    if (ms < 0) ms = 0;
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60;
+    return pad(h) + ":" + pad(m) + ":" + pad(s);
+  }
+
+  function tickDaylight(){
+    var heroEl = document.getElementById("sun-daylight");
+    var labelEl = document.getElementById("sun-daylight-label");
+    if (!sunTimesCache || !sunTimesCache.sunrise || !sunTimesCache.sunset){
+      heroEl.textContent = "--:--:--";
+      return;
+    }
+    var now = new Date();
+    if (now >= sunTimesCache.sunrise && now < sunTimesCache.sunset){
+      heroEl.textContent = fmtDuration(sunTimesCache.sunset - now);
+      labelEl.textContent = "DAYLIGHT REMAINING";
+    } else if (nextSunriseCache){
+      heroEl.textContent = fmtDuration(nextSunriseCache - now);
+      labelEl.textContent = "NIGHT — SUNRISE IN";
+    } else {
+      heroEl.textContent = "--:--:--";
+    }
+  }
+  safeCall(tickDaylight);
+  setInterval(function(){ safeCall(tickDaylight); }, 1000);
+
+  /* ================= MOON PANEL ================= */
   var MOON_NAMES = [
     [0.02, "NEW MOON"], [0.24, "WAXING CRESCENT"], [0.26, "FIRST QUARTER"],
     [0.48, "WAXING GIBBOUS"], [0.52, "FULL MOON"], [0.74, "WANING GIBBOUS"],
@@ -448,35 +761,118 @@
     }
     return "NEW MOON";
   }
-  function computeMoon(date){
-    var synodic = 29.530588853;
-    var knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
-    var diffDays = (date.getTime() - knownNewMoon) / 86400000;
-    var frac = (diffDays % synodic) / synodic;
-    if (frac < 0) frac += 1;
-    var illum = (1 - Math.cos(2 * Math.PI * frac)) / 2;
-    return { frac: frac, illum: illum, name: moonPhaseName(frac) };
-  }
-  function renderMoon(){
-    var m = computeMoon(new Date());
-    document.getElementById("moon-phase-name").textContent = m.name;
-    document.getElementById("moon-illum").textContent = Math.round(m.illum * 100) + "% illuminated";
-
+  function renderMoonVisual(frac){
     var visual = document.getElementById("moon-visual");
     var diameter = visual.getBoundingClientRect().width || 64;
     var offset;
-    if (m.frac <= 0.5){
-      offset = diameter * (1 - 2 * m.frac);
-    } else {
-      offset = -diameter * (2 * m.frac - 1);
-    }
+    if (frac <= 0.5) offset = diameter * (1 - 2 * frac);
+    else offset = -diameter * (2 * frac - 1);
     visual.style.boxShadow = "inset " + offset.toFixed(1) + "px 0 0 0 #33ff66";
   }
-  renderMoon();
-  setInterval(renderMoon, 3600000);
 
-  fetchWeather();
-  setInterval(fetchWeather, 3600000);
+  function updateMoonPanel(){
+    var now = new Date();
+    var illum = SunCalc.getMoonIllumination(now);
+    var pos = SunCalc.getMoonPosition(now, LAT, LON);
+    var times = SunCalc.getMoonTimes(now, LAT, LON, false);
+
+    document.getElementById("moon-phase-name").textContent = moonPhaseName(illum.phase);
+    document.getElementById("moon-illum").textContent = Math.round(illum.fraction * 100) + "% illuminated";
+    document.getElementById("moon-rise").textContent = times.rise ? fmtTime(times.rise) :
+      (times.alwaysUp ? "UP ALL DAY" : (times.alwaysDown ? "DOWN ALL DAY" : "--:--"));
+    document.getElementById("moon-set").textContent = times.set ? fmtTime(times.set) :
+      (times.alwaysUp || times.alwaysDown ? "" : "--:--");
+    document.getElementById("moon-dist").textContent = Math.round(pos.distance).toLocaleString();
+
+    renderMoonVisual(illum.phase);
+  }
+  safeCall(updateMoonPanel);
+  setInterval(function(){ safeCall(updateMoonPanel); }, 3600000);
+
+  /* ================= NEXT CELESTIAL EVENT ================= */
+  function findNextMoonPhase(targetFrac, fromDate){
+    var stepHours = 3, maxHours = 40 * 24;
+    var prevFrac = SunCalc.getMoonIllumination(fromDate).phase;
+    for (var h = stepHours; h <= maxHours; h += stepHours){
+      var t = new Date(fromDate.getTime() + h * 3600000);
+      var frac = SunCalc.getMoonIllumination(t).phase;
+      var crossed = (targetFrac === 0)
+        ? (prevFrac > 0.9 && frac < 0.1)
+        : (prevFrac < targetFrac && frac >= targetFrac);
+      if (crossed) return t;
+      prevFrac = frac;
+    }
+    return null;
+  }
+
+  var METEOR_SHOWERS = [
+    { name: "Quadrantids", month: 1, day: 4 },
+    { name: "Lyrids", month: 4, day: 22 },
+    { name: "Eta Aquariids", month: 5, day: 5 },
+    { name: "Perseids", month: 8, day: 12 },
+    { name: "Orionids", month: 10, day: 21 },
+    { name: "Leonids", month: 11, day: 17 },
+    { name: "Geminids", month: 12, day: 14 },
+    { name: "Ursids", month: 12, day: 22 }
+  ];
+  function nextMeteorShower(from){
+    var best = null;
+    METEOR_SHOWERS.forEach(function(s){
+      var y = from.getFullYear();
+      var d = new Date(y, s.month - 1, s.day, 12, 0, 0);
+      if (d < from) d = new Date(y + 1, s.month - 1, s.day, 12, 0, 0);
+      if (!best || d < best.date) best = { date: d, name: s.name, tag: "METEOR" };
+    });
+    return best;
+  }
+
+  // Hand-maintained almanac of upcoming eclipses. Meteor showers above
+  // recur every year automatically and never need updating; this list
+  // does not — extend it as these dates pass.
+  var ECLIPSES = [
+    { date: "2026-02-17", name: "Annular Solar Eclipse" },
+    { date: "2026-03-03", name: "Total Lunar Eclipse" },
+    { date: "2026-08-12", name: "Total Solar Eclipse" },
+    { date: "2026-08-28", name: "Partial Lunar Eclipse" },
+    { date: "2027-02-06", name: "Annular Solar Eclipse" },
+    { date: "2027-08-02", name: "Total Solar Eclipse" }
+  ];
+  function nextEclipse(from){
+    for (var i = 0; i < ECLIPSES.length; i++){
+      var d = new Date(ECLIPSES[i].date + "T12:00:00Z");
+      if (d >= from) return { date: d, name: ECLIPSES[i].name, tag: "ECLIPSE" };
+    }
+    return null;
+  }
+
+  function fmtEventDate(d, from){
+    if (!d) return "—";
+    var days = Math.round((d - from) / 86400000);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase() + " (" + days + "d)";
+  }
+
+  function updateNextEvent(){
+    var now = new Date();
+    var nextFull = findNextMoonPhase(0.5, now);
+    var nextNew = findNextMoonPhase(0, now);
+    document.getElementById("ne-full").textContent = fmtEventDate(nextFull, now);
+    document.getElementById("ne-new").textContent = fmtEventDate(nextNew, now);
+
+    var shower = nextMeteorShower(now);
+    var eclipse = nextEclipse(now);
+    var extra = null;
+    if (shower && eclipse) extra = (shower.date < eclipse.date) ? shower : eclipse;
+    else extra = shower || eclipse;
+
+    var extraEl = document.getElementById("ne-extra");
+    if (extra && (extra.date - now) <= 60 * 86400000){
+      extraEl.innerHTML = '<span class="ne-tag">' + extra.tag + '</span>' + extra.name + " — " + fmtEventDate(extra.date, now);
+    } else {
+      extraEl.innerHTML = "";
+    }
+  }
+  safeCall(updateNextEvent);
+  setInterval(function(){ safeCall(updateNextEvent); }, 86400000);
 
   /* ================= NEWS ================= */
   var newsItems = [];
@@ -534,136 +930,157 @@
     renderNewsItem();
   }, 8000);
 
-  /* ================= QUOTE OF THE DAY ================= */
-  var FALLBACK_QUOTES = [
-    { q: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
-    { q: "Simplicity is the ultimate sophistication.", a: "Leonardo da Vinci" },
-    { q: "What we think, we become.", a: "Buddha" }
-  ];
+  /* ================= CRITTERS: cat chasing lizard (canvas) ================= */
+  (function initChase(){
+    var canvas = document.getElementById("chase-canvas");
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext("2d");
 
-  function renderQuote(q, a){
-    document.getElementById("quote-text").textContent = q;
-    document.getElementById("quote-author").textContent = a || "unknown";
-  }
+    var W = 0, H = 0, dpr = 1;
+    function resize(){
+      var rect = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      W = Math.max(1, rect.width);
+      H = Math.max(1, rect.height);
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener("resize", resize);
+    resize();
 
-  function fetchQuote(){
-    fetch("https://zenquotes.io/api/today")
-      .then(function(r){ if (!r.ok) throw new Error("zq http " + r.status); return r.json(); })
-      .then(function(data){
-        if (!data || !data[0]) throw new Error("empty");
-        renderQuote(data[0].q, data[0].a);
-        setStale(document.getElementById("tile-quote"), false);
-        try { localStorage.setItem("kiosk-quote", JSON.stringify(data[0])); } catch(e){}
-      })
-      .catch(function(){
-        return fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://zenquotes.io/api/today"))
-          .then(function(r){ if (!r.ok) throw new Error("proxy http " + r.status); return r.json(); })
-          .then(function(data){
-            if (!data || !data[0]) throw new Error("empty");
-            renderQuote(data[0].q, data[0].a);
-            setStale(document.getElementById("tile-quote"), false);
-            try { localStorage.setItem("kiosk-quote", JSON.stringify(data[0])); } catch(e){}
-          });
-      })
-      .catch(function(err){
-        console.warn("quote fetch failed", err);
-        setStale(document.getElementById("tile-quote"), true);
-        try {
-          var cached = JSON.parse(localStorage.getItem("kiosk-quote") || "null");
-          if (cached){ renderQuote(cached.q, cached.a); return; }
-        } catch(e){}
-        var pick = FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
-        renderQuote(pick.q, pick.a);
+    function rand(a, b){ return a + Math.random() * (b - a); }
+    function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+    function angleDiff(a, b){
+      var d = (b - a) % (Math.PI * 2);
+      if (d > Math.PI) d -= Math.PI * 2;
+      if (d < -Math.PI) d += Math.PI * 2;
+      return d;
+    }
+
+    function makeCritter(){
+      return {
+        x: rand(12, Math.max(13, W - 12)),
+        y: rand(12, Math.max(13, H - 12)),
+        angle: rand(0, Math.PI * 2),
+        facing: 1,
+        frame: 0,
+        dartUntil: 0
+      };
+    }
+
+    var lizard = makeCritter();
+    var cat = makeCritter();
+
+    var BASE_LIZARD_SPEED = 24; // px/sec — cat's base speed is always lower, so it never catches up
+    var BASE_CAT_SPEED = 17;
+    var nextDartAt = performance.now() + rand(1500, 4000);
+    var lastT = null;
+
+    function bounce(c){
+      var m = 10;
+      if (c.x < m){ c.x = m; c.angle = Math.PI - c.angle; }
+      if (c.x > W - m){ c.x = W - m; c.angle = Math.PI - c.angle; }
+      if (c.y < m){ c.y = m; c.angle = -c.angle; }
+      if (c.y > H - m){ c.y = H - m; c.angle = -c.angle; }
+    }
+
+    function step(tMs){
+      if (lastT == null) lastT = tMs;
+      var dt = Math.min((tMs - lastT) / 1000, 0.1);
+      lastT = tMs;
+
+      if (tMs > nextDartAt && tMs > lizard.dartUntil){
+        lizard.angle = rand(0, Math.PI * 2);
+        lizard.dartUntil = tMs + rand(300, 600);
+        nextDartAt = tMs + rand(2000, 5000);
+      }
+      var darting = tMs < lizard.dartUntil;
+      var lizardSpeed = darting ? BASE_LIZARD_SPEED * 3.2 : BASE_LIZARD_SPEED;
+      lizard.angle += rand(-0.5, 0.5) * (darting ? 0.4 : 1);
+      lizard.x += Math.cos(lizard.angle) * lizardSpeed * dt;
+      lizard.y += Math.sin(lizard.angle) * lizardSpeed * dt;
+      lizard.facing = Math.cos(lizard.angle) >= 0 ? 1 : -1;
+      bounce(lizard);
+
+      var dx = lizard.x - cat.x, dy = lizard.y - cat.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var targetAngle = Math.atan2(dy, dx);
+      cat.angle += clamp(angleDiff(cat.angle, targetAngle), -2.2 * dt, 2.2 * dt) + rand(-0.15, 0.15) * dt * 10;
+      var catSpeed = BASE_CAT_SPEED * (dist < 18 ? 0.4 : 1);
+      cat.x += Math.cos(cat.angle) * catSpeed * dt;
+      cat.y += Math.sin(cat.angle) * catSpeed * dt;
+      cat.facing = Math.cos(cat.angle) >= 0 ? 1 : -1;
+      bounce(cat);
+
+      lizard.frame += dt;
+      cat.frame += dt;
+
+      draw();
+      requestAnimationFrame(step);
+    }
+
+    function draw(){
+      ctx.clearRect(0, 0, W, H);
+      drawLizard(lizard);
+      drawCat(cat);
+    }
+
+    function drawLizard(c){
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.scale(c.facing, 1);
+      ctx.fillStyle = "#d99a3d";
+      var px = 2.4;
+      var legPhase = Math.floor(c.frame * 8) % 2;
+      [[-3, 0], [-2, 0], [-1, 0], [0, 0], [1, -1], [2, -1]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.6, px - 0.6);
       });
-  }
-  fetchQuote();
-  setInterval(fetchQuote, 86400000);
+      ctx.fillRect(-5 * px - px / 2, (legPhase ? 1 : 0) * px - px / 2, px - 0.6, px - 0.6);
+      var legY = legPhase ? 1 : -1;
+      ctx.fillRect(-1.5 * px - px / 2, legY * px * 1.4 - px / 2, px - 1, px - 1);
+      ctx.fillRect(0.5 * px - px / 2, -legY * px * 1.4 - px / 2, px - 1, px - 1);
+      ctx.restore();
+    }
 
-  /* ================= ON THIS DAY ================= */
-  function fetchHistory(){
-    var now = new Date();
-    var mm = pad(now.getMonth() + 1);
-    var dd = pad(now.getDate());
-    document.getElementById("history-date").textContent =
-      now.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
-
-    var url = "https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/selected/" + mm + "/" + dd;
-
-    fetch(url)
-      .then(function(r){ if (!r.ok) throw new Error("hist http " + r.status); return r.json(); })
-      .then(function(data){
-        var events = data.selected || data.events || [];
-        if (!events.length) throw new Error("no events");
-        var picked = events.slice(0, 3);
-        var html = picked.map(function(ev){
-          return '<div class="hist-item"><span class="yr">' + ev.year + '</span>' + ev.text + '</div>';
-        }).join("");
-        document.getElementById("history-body").innerHTML = html;
-        setStale(document.getElementById("tile-history"), false);
-        try { localStorage.setItem("kiosk-history", JSON.stringify(picked)); } catch(e){}
-      })
-      .catch(function(err){
-        console.warn("history fetch failed", err);
-        setStale(document.getElementById("tile-history"), true);
-        try {
-          var cached = JSON.parse(localStorage.getItem("kiosk-history") || "null");
-          if (cached && cached.length){
-            var html = cached.map(function(ev){
-              return '<div class="hist-item"><span class="yr">' + ev.year + '</span>' + ev.text + '</div>';
-            }).join("");
-            document.getElementById("history-body").innerHTML = html;
-            return;
-          }
-        } catch(e){}
-        document.getElementById("history-body").innerHTML = '<div class="hist-item">—</div>';
+    function drawCat(c){
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.scale(c.facing, 1);
+      ctx.fillStyle = "#33ff66";
+      var px = 3;
+      var legPhase = Math.floor(c.frame * 6) % 2;
+      [[-1, -2], [1, -2], [-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-2, 1], [2, 1]].forEach(function(p){
+        var y = p[1];
+        if (p[0] === -2 || p[0] === 2) y += legPhase ? 0 : 0.4;
+        ctx.fillRect(p[0] * px - px / 2, y * px - px / 2, px - 0.6, px - 0.6);
       });
-  }
-  fetchHistory();
-  setInterval(fetchHistory, 86400000);
+      ctx.restore();
+    }
 
-  /* ================= JOKE + CAT ================= */
-  function talkCat(){
-    var cat = document.getElementById("cat-svg");
-    cat.classList.add("talk");
-    setTimeout(function(){ cat.classList.remove("talk"); }, 900);
-  }
+    requestAnimationFrame(step);
+  })();
 
-  function fetchJoke(){
-    fetch("https://icanhazdadjoke.com/", { headers: { "Accept": "application/json" } })
-      .then(function(r){ if (!r.ok) throw new Error("joke http " + r.status); return r.json(); })
-      .then(function(data){
-        if (!data.joke) throw new Error("empty joke");
-        document.getElementById("joke-text").textContent = data.joke;
-        setStale(document.getElementById("tile-joke"), false);
-        talkCat();
-        try { localStorage.setItem("kiosk-joke", data.joke); } catch(e){}
-      })
-      .catch(function(err){
-        console.warn("joke fetch failed", err);
-        setStale(document.getElementById("tile-joke"), true);
-        try {
-          var cached = localStorage.getItem("kiosk-joke");
-          if (cached){ document.getElementById("joke-text").textContent = cached; return; }
-        } catch(e){}
-        document.getElementById("joke-text").textContent = "—";
-      });
-  }
-  fetchJoke();
-  setInterval(fetchJoke, 240000);
+  /* ================= FULLSCREEN ON FIRST TAP ================= */
+  (function initFullscreenOnTap(){
+    function goFullscreen(){
+      var el = document.documentElement;
+      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (!req) return;
+      try {
+        var p = req.call(el);
+        if (p && typeof p.catch === "function") p.catch(function(){});
+      } catch(e){}
+    }
+    document.addEventListener("click", goFullscreen, { once: true, passive: true });
+    document.addEventListener("touchend", goFullscreen, { once: true, passive: true });
+  })();
 
   /* ================= INIT FROM CACHE (instant paint before first fetch) ================= */
   (function primeFromCache(){
     try {
       var news = JSON.parse(localStorage.getItem("kiosk-news") || "null");
       if (news && news.length){ newsItems = news; renderNewsItem(); }
-    } catch(e){}
-    try {
-      var quote = JSON.parse(localStorage.getItem("kiosk-quote") || "null");
-      if (quote) renderQuote(quote.q, quote.a);
-    } catch(e){}
-    try {
-      var joke = localStorage.getItem("kiosk-joke");
-      if (joke) document.getElementById("joke-text").textContent = joke;
     } catch(e){}
   })();
 
