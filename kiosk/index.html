@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=1920, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>kiosk — retro terminal dashboard</title>
 <meta name="description" content="A retro CRT-terminal dashboard for a wall-mounted kiosk display.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='20' fill='%2333ff66'%3E%3E_%3C/text%3E%3C/svg%3E">
@@ -41,22 +41,22 @@
   .dashboard{
     width:100vw; height:100vh;
     display:grid;
-    grid-template-rows: 17vh 1fr;
-    gap:10px;
-    padding:10px;
+    grid-template-rows: 19vh 1fr;
+    gap:0.55vw;
+    padding:0.55vw;
   }
 
   .top-row{
     display:grid;
     grid-template-columns: 0.85fr 1.3fr 1fr;
-    gap:10px;
+    gap:0.55vw;
   }
 
   .bottom-grid{
     display:grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
-    gap:10px;
+    gap:0.55vw;
   }
 
   /* ---------- tiles ---------- */
@@ -65,7 +65,7 @@
     position:relative;
     border:1px solid var(--accent, var(--border));
     background:#000;
-    padding:10px 16px 14px;
+    padding:0.55vw 0.85vw 0.75vw;
     display:flex;
     flex-direction:column;
     overflow:hidden;
@@ -75,18 +75,18 @@
     display:flex;
     justify-content:space-between;
     align-items:baseline;
-    font-size:15px;
-    letter-spacing:3px;
+    font-size:1.15vw;
+    letter-spacing:0.14vw;
     color:var(--accent, var(--green));
     text-transform:uppercase;
-    margin-bottom:6px;
+    margin-bottom:0.3vw;
     text-shadow:0 0 5px currentColor;
   }
 
   .tile-head .tag{
-    font-size:11px;
+    font-size:1vw;
     opacity:0.55;
-    letter-spacing:1px;
+    letter-spacing:0.05vw;
   }
 
   .ascii-div{
@@ -94,9 +94,9 @@
     white-space:nowrap;
     color:var(--accent, var(--green));
     opacity:0.35;
-    font-size:14px;
+    font-size:1vw;
     line-height:1;
-    margin-bottom:8px;
+    margin-bottom:0.35vw;
   }
   .ascii-div::before{
     content:"────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
@@ -115,9 +115,9 @@
   #tile-clock{ --accent:var(--green); }
   #tile-clock .tile-body{ align-items:center; }
   .clock-time{
-    font-size:76px;
+    font-size:4vw;
     font-weight:700;
-    letter-spacing:4px;
+    letter-spacing:0.15vw;
     text-shadow:0 0 10px rgba(51,255,102,0.55);
     font-variant-numeric: tabular-nums;
   }
@@ -127,73 +127,73 @@
   /* ---------- weather ---------- */
 
   #tile-weather{ --accent:var(--cyan); }
-  .wx-now{ display:flex; align-items:baseline; gap:18px; }
+  .wx-now{ display:flex; align-items:baseline; gap:0.9vw; }
   .wx-temp{
-    font-size:56px; font-weight:700; color:var(--green);
+    font-size:3.1vw; font-weight:700; color:var(--green);
     text-shadow:0 0 8px rgba(51,255,102,0.45);
   }
-  .wx-cond{ font-size:18px; color:var(--cyan); letter-spacing:1px; }
-  .wx-sub{ margin-top:10px; font-size:14px; color:var(--green-dim); line-height:1.6; }
-  .wx-fc-row{ display:flex; gap:26px; margin-top:4px; }
-  .wx-fc-day{ font-size:13px; color:var(--cyan); }
-  .wx-fc-day b{ color:var(--green); display:block; font-size:16px; }
+  .wx-cond{ font-size:1.25vw; color:var(--cyan); letter-spacing:0.05vw; }
+  .wx-sub{ margin-top:0.2vw; font-size:0.95vw; color:var(--green-dim); line-height:1.3; }
+  .wx-fc-row{ display:flex; gap:1.35vw; margin-top:0.1vw; }
+  .wx-fc-day{ font-size:0.95vw; color:var(--cyan); }
+  .wx-fc-day b{ color:var(--green); display:block; font-size:1.15vw; }
 
   /* ---------- moon / uv ---------- */
 
   #tile-moonuv{ --accent:var(--amber); }
-  .moonuv-row{ display:flex; align-items:center; gap:22px; }
+  .moonuv-row{ display:flex; align-items:center; gap:1.15vw; }
   .moon-visual{
-    width:64px; height:64px; min-width:64px;
+    width:3.6vw; aspect-ratio:1/1; min-width:3.6vw;
     border-radius:50%;
     border:1px solid var(--amber);
     background:#050505;
     box-shadow: inset 0 0 0 0 var(--green);
   }
-  .moon-info{ font-size:14px; line-height:1.7; }
-  .moon-info .phase-name{ color:var(--green); font-size:16px; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
+  .moon-info{ font-size:1vw; line-height:1.5; }
+  .moon-info .phase-name{ color:var(--green); font-size:1.2vw; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
   .moon-info .dim{ color:var(--amber); opacity:0.85; }
-  .uv-row{ margin-top:12px; font-size:15px; }
-  .uv-val{ color:var(--amber); font-weight:700; font-size:22px; text-shadow:0 0 6px rgba(217,154,61,0.4); }
+  .uv-row{ margin-top:0.4vw; font-size:1.05vw; }
+  .uv-val{ color:var(--amber); font-weight:700; font-size:1.5vw; text-shadow:0 0 6px rgba(217,154,61,0.4); }
 
   /* ---------- news ---------- */
 
   #tile-news{ --accent:var(--green); }
   .news-headline{
-    font-size:26px;
+    font-size:2.2vw;
     line-height:1.5;
     color:var(--green);
     text-shadow:0 0 5px rgba(51,255,102,0.3);
   }
-  .news-source{ margin-top:14px; font-size:13px; color:var(--green-dim); letter-spacing:1px; }
-  .news-dots{ position:absolute; bottom:12px; right:16px; font-size:12px; color:var(--green-dim); letter-spacing:3px; }
+  .news-source{ margin-top:0.75vw; font-size:1.15vw; color:var(--green-dim); letter-spacing:0.05vw; }
+  .news-dots{ position:absolute; bottom:0.65vw; right:0.85vw; font-size:1vw; color:var(--green-dim); letter-spacing:0.16vw; }
 
   /* ---------- quote ---------- */
 
   #tile-quote{ --accent:var(--magenta); }
   .quote-text{
-    font-size:24px;
+    font-size:2vw;
     line-height:1.55;
     color:var(--green);
     text-shadow:0 0 5px rgba(51,255,102,0.3);
   }
   .quote-text::before{ content:"\201C"; color:var(--magenta); }
   .quote-text::after{ content:"\201D"; color:var(--magenta); }
-  .quote-author{ margin-top:14px; font-size:15px; color:var(--magenta); text-align:right; }
+  .quote-author{ margin-top:0.75vw; font-size:1.3vw; color:var(--magenta); text-align:right; }
   .quote-author::before{ content:"— "; }
 
   /* ---------- history ---------- */
 
   #tile-history{ --accent:var(--cyan); }
-  .hist-item{ font-size:17px; line-height:1.5; margin-bottom:12px; color:var(--green); }
-  .hist-item .yr{ color:var(--cyan); font-weight:700; margin-right:8px; }
+  .hist-item{ font-size:1.45vw; line-height:1.5; margin-bottom:0.65vw; color:var(--green); }
+  .hist-item .yr{ color:var(--cyan); font-weight:700; margin-right:0.4vw; }
 
   /* ---------- joke ---------- */
 
   #tile-joke{ --accent:var(--amber); }
-  .joke-wrap{ display:flex; align-items:center; gap:20px; }
-  .joke-text{ font-size:21px; line-height:1.5; color:var(--green); text-shadow:0 0 5px rgba(51,255,102,0.3); }
+  .joke-wrap{ display:flex; align-items:center; gap:1vw; }
+  .joke-text{ font-size:1.8vw; line-height:1.5; color:var(--green); text-shadow:0 0 5px rgba(51,255,102,0.3); }
 
-  .cat{ width:96px; height:88px; min-width:96px; }
+  .cat{ width:8vw; aspect-ratio:96/88; min-width:8vw; }
   .cat .eye{ transform-origin:center; animation: cat-blink 5s infinite; }
   .cat .eye.right{ animation-delay:0.08s; }
   @keyframes cat-blink{
@@ -462,14 +462,14 @@
     document.getElementById("moon-phase-name").textContent = m.name;
     document.getElementById("moon-illum").textContent = Math.round(m.illum * 100) + "% illuminated";
 
-    var diameter = 64;
+    var visual = document.getElementById("moon-visual");
+    var diameter = visual.getBoundingClientRect().width || 64;
     var offset;
     if (m.frac <= 0.5){
       offset = diameter * (1 - 2 * m.frac);
     } else {
       offset = -diameter * (2 * m.frac - 1);
     }
-    var visual = document.getElementById("moon-visual");
     visual.style.boxShadow = "inset " + offset.toFixed(1) + "px 0 0 0 #33ff66";
   }
   renderMoon();
