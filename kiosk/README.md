@@ -29,13 +29,15 @@ Three rows: two tiles, three tiles, two larger tiles.
   and 6-hour precipitation probability on the right, plus a 2-day forecast
   strip along the bottom. Via [Open-Meteo](https://open-meteo.com/) (no
   API key).
-- **Critters** (violet) — a small canvas animation: a copper cat (roughly
-  twice the size of the lizard, legs shown as thin stroked lines) chasing
-  an amber lizard around the tile, past a handful of faint pine-silhouette
-  shapes that drift in and out of view in the background. Both critters
-  wander with randomized paths; the lizard darts erratically and
-  occasionally flicks a small forked tongue, and the cat is always a
-  little slower, so it never actually catches it.
+- **Cat & Lizard** (pink, matching Clock) — a small canvas animation: a
+  copper cat (roughly twice the size of the lizard, with pixel eyes, a
+  nose, whiskers, and proportional leg blocks — all still built from the
+  same size pixel grid as the rest of the sprite, not a finer/smoother
+  drawing) chasing an amber lizard around the tile, past a handful of
+  faint pine-silhouette shapes that drift in and out of view in the
+  background. Both critters wander with randomized paths; the lizard
+  darts erratically and occasionally flicks a small forked tongue, and
+  the cat is always a little slower, so it never actually catches it.
 
 Each tile's accent color is chosen so no two *adjacent* tiles share one —
 see "Colors/accents" under Adjusting for the full palette and the
@@ -142,6 +144,27 @@ height, comfortably past any real Android address bar) with a full
 Playwright overflow check at each step — zero overflow anywhere in that
 range, both before and after the grid fix confirmed the difference.
 
+**A further real-device report**: on-device testing (Firefox for Android,
+where fullscreen itself works — see the known gap below) found the Sun
+and Weather tiles' last row still clipped at the bottom edge, despite no
+overflow showing up in this project's Chromium-based testing at the same
+1920×1080 size. The suspected cause is a font-metric/line-height
+difference between Firefox's and Chromium's rendering of JetBrains Mono
+that this testing setup can't reproduce (this environment has no Firefox
+build available to verify against directly). Rather than chase an exact
+number blind, the fix was a generous one: `.dashboard`'s row split moved
+from `28vh 31vh 1fr` to `30vh 29vh 1fr` (more room for Sun, borrowed from
+Moon/Planets/Next&nbsp;Event's row, which had comfortable margin to
+spare), tile padding was trimmed slightly across the board, and Sun's and
+Weather's own internal spacing (hero font size, `stat-line` margins, the
+forecast row's top margin) was tightened further. Measured result in
+this project's own testing: roughly 40px of slack below Sun's and
+Weather's last row at 1920×1080 (up from effectively 0px before) — but
+since that's Chromium, **please confirm on the actual phone** that this
+is enough; if Firefox still clips, the next lever to pull is the same
+`grid-template-rows` split and the `--stat-w`/font-size values called out
+under Adjusting.
+
 **Known gap:** on-device testing on Brave for Android found the address
 bar still visible after tapping. The gesture-handling logic itself
 checked out under both synthetic mouse and touch events in real desktop
@@ -244,13 +267,14 @@ Everything lives in `kiosk/index.html`:
 - **Colors/accents** — six tones live as CSS custom properties at the top
   of `<style>`, each tile setting its own via the `--accent` custom
   property on its `#tile-*` rule: `--copper` (Weather, and the default
-  body text color everywhere else), `--pink` (Clock), `--cream` (Moon),
-  `--cyan` (Planets), `--amber` (Sun), `--violet` (Next Event). Critters
-  reuses `--violet` — the only repeated tone — but it's placed two tiles
-  away from Next Event on the grid, so no two tiles that actually share
-  an edge repeat a color. Check adjacency before reusing a tone if you
-  rearrange tiles. `--copper-dim`/`--cream-dim` are dimmed variants used
-  for label text.
+  body text color everywhere else), `--pink` (Clock *and* Cat & Lizard),
+  `--cream` (Moon), `--cyan` (Planets), `--amber` (Sun), `--violet` (Next
+  Event, currently the only tile using it). Clock and Cat & Lizard are
+  the one repeated pair, by request — they're diagonally opposite corners
+  of the grid, not sharing an edge, so it doesn't violate the "no two
+  *adjacent* tiles share a color" rule the rest of the palette follows.
+  Check adjacency before reusing a tone elsewhere if you rearrange tiles.
+  `--copper-dim`/`--cream-dim` are dimmed variants used for label text.
 - **Data vs. label sizing and alignment** — the small dim-label /
   large-bright-value pattern used throughout (RISE/SET/WIND/etc.) is one
   shared CSS class, `.stat-line` (`.lbl` for the label, a `<b>` for the
