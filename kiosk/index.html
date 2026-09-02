@@ -5,19 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>kiosk — retro terminal dashboard</title>
 <meta name="description" content="A retro CRT-terminal dashboard for a wall-mounted kiosk display.">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='20' fill='%2333ff66'%3E%3E_%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='20' fill='%23b87333'%3E%3E_%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#000000;
-    --green:#33ff66;
-    --green-dim:#1c8a3a;
+    --copper:#b87333;
+    --copper-dim:#6e451f;
+    --pink:#e88ca0;
+    --cream:#f5f0e6;
+    --cream-dim:#a39c8c;
     --cyan:#4fb3bf;
     --amber:#d99a3d;
     --magenta:#b566a3;
-    --border:#1f4d2c;
+    --border:#4a2f16;
   }
 
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -32,7 +35,7 @@
 
   body{
     font-family:'JetBrains Mono', 'Space Mono', monospace;
-    color:var(--green);
+    color:var(--copper);
     font-weight:400;
   }
 
@@ -48,7 +51,7 @@
 
   .row-top{
     display:grid;
-    grid-template-columns: 0.85fr 1.2fr 1fr;
+    grid-template-columns: 1fr 1.3fr;
     gap:0.55vw;
   }
 
@@ -60,7 +63,7 @@
 
   .row-bottom{
     display:grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.15fr 1fr;
     gap:0.55vw;
   }
 
@@ -82,7 +85,7 @@
     align-items:baseline;
     font-size:1.1vw;
     letter-spacing:0.13vw;
-    color:var(--accent, var(--green));
+    color:var(--accent, var(--copper));
     text-transform:uppercase;
     margin-bottom:0.3vw;
     text-shadow:0 0 5px currentColor;
@@ -97,7 +100,7 @@
   .ascii-div{
     overflow:hidden;
     white-space:nowrap;
-    color:var(--accent, var(--green));
+    color:var(--accent, var(--copper));
     opacity:0.35;
     font-size:0.95vw;
     line-height:1;
@@ -117,13 +120,14 @@
 
   /* ---------- clock ---------- */
 
-  #tile-clock{ --accent:var(--green); }
+  #tile-clock{ --accent:var(--pink); }
   #tile-clock .tile-body{ align-items:center; }
   .clock-time{
     font-size:4vw;
     font-weight:700;
     letter-spacing:0.15vw;
-    text-shadow:0 0 10px rgba(51,255,102,0.55);
+    color:var(--pink);
+    text-shadow:0 0 10px rgba(232,140,160,0.55);
     font-variant-numeric: tabular-nums;
   }
   .clock-cursor{ animation: blink 1s steps(1) infinite; }
@@ -134,22 +138,27 @@
   #tile-weather{ --accent:var(--cyan); }
   .wx-now{ display:flex; align-items:baseline; gap:0.9vw; }
   .wx-temp{
-    font-size:3.1vw; font-weight:700; color:var(--green);
-    text-shadow:0 0 8px rgba(51,255,102,0.45);
+    font-size:4.2vw; font-weight:700; color:var(--copper);
+    text-shadow:0 0 8px rgba(184,115,51,0.5);
   }
-  .wx-cond{ font-size:1.25vw; color:var(--cyan); letter-spacing:0.05vw; }
-  .wx-sub{ margin-top:0.15vw; font-size:0.9vw; color:var(--green-dim); line-height:1.2; }
-  .wx-sub b{ color:var(--green); font-weight:700; }
-  .wx-fc-row{ display:flex; gap:1.35vw; margin-top:0.1vw; }
-  .wx-fc-day{ font-size:0.95vw; color:var(--cyan); }
-  .wx-fc-day b{ color:var(--green); display:block; font-size:1.15vw; }
+  .wx-cond{ font-size:1.4vw; color:var(--cyan); letter-spacing:0.05vw; }
+  .wx-sub{ margin-top:0.15vw; font-size:0.9vw; color:var(--copper-dim); line-height:1.2; }
+  .wx-sub b{ color:var(--copper); font-weight:700; }
+  .wx-fc-row{ display:flex; gap:1.35vw; margin-top:0.6vw; }
+  .wx-fc-day{ font-size:1vw; color:var(--cyan); }
+  .wx-fc-day b{ color:var(--copper); display:block; font-size:1.2vw; }
+
+  .wx-grid{ display:flex; gap:2.4vw; }
+  .wx-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .wx2-sub{ font-size:1.05vw; color:var(--copper-dim); line-height:1.85; }
+  .wx2-sub b{ color:var(--copper); font-weight:700; }
 
   /* ---------- sun ---------- */
 
   #tile-sun{ --accent:var(--amber); }
   .sun-hero{
-    font-size:2.3vw; font-weight:700; color:var(--green);
-    text-shadow:0 0 8px rgba(51,255,102,0.45);
+    font-size:2.3vw; font-weight:700; color:var(--copper);
+    text-shadow:0 0 8px rgba(184,115,51,0.5);
     font-variant-numeric: tabular-nums;
   }
   .sun-hero-label{ font-size:0.78vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.25vw; }
@@ -163,38 +172,28 @@
     border-radius:50%;
     border:1px solid var(--magenta);
     background:#050505;
-    box-shadow: inset 0 0 0 0 var(--green);
+    box-shadow: inset 0 0 0 0 var(--cream);
   }
   .moon-info{ font-size:0.95vw; line-height:1.4; }
-  .moon-info .phase-name{ color:var(--green); font-size:1.1vw; display:block; text-shadow:0 0 6px rgba(51,255,102,0.4); }
+  .moon-info .phase-name{ color:var(--cream); font-size:1.1vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
   .moon-info .dim{ color:var(--magenta); opacity:0.85; }
+  #tile-moon .wx-sub{ color:var(--cream-dim); }
+  #tile-moon .wx-sub b{ color:var(--cream); }
 
   /* ---------- planets ---------- */
 
   #tile-planets{ --accent:var(--cyan); }
-  .planet-line{ font-size:1vw; line-height:1.55; color:var(--green); }
+  .planet-line{ font-size:1vw; line-height:1.55; color:var(--copper); }
   .planet-line b{ color:var(--cyan); margin-right:0.35vw; }
-  .planet-line.dim{ color:var(--green-dim); font-size:0.95vw; }
+  .planet-line.dim{ color:var(--copper-dim); font-size:0.95vw; }
 
   /* ---------- next event ---------- */
 
   #tile-nextevent{ --accent:var(--amber); }
-  .ne-line{ font-size:0.95vw; line-height:1.65; color:var(--green); }
+  .ne-line{ font-size:0.95vw; line-height:1.65; color:var(--copper); }
   .ne-label{ color:var(--cyan); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
-  .ne-line b{ color:var(--green); font-weight:700; }
+  .ne-line b{ color:var(--copper); font-weight:700; }
   .ne-tag{ color:var(--magenta); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
-
-  /* ---------- news ---------- */
-
-  #tile-news{ --accent:var(--green); }
-  .news-headline{
-    font-size:2vw;
-    line-height:1.5;
-    color:var(--green);
-    text-shadow:0 0 5px rgba(51,255,102,0.3);
-  }
-  .news-source{ margin-top:0.7vw; font-size:1.05vw; color:var(--green-dim); letter-spacing:0.05vw; }
-  .news-dots{ position:absolute; bottom:0.6vw; right:0.85vw; font-size:0.9vw; color:var(--green-dim); letter-spacing:0.16vw; }
 
   /* ---------- critters (cat & lizard chase) ---------- */
 
@@ -243,22 +242,6 @@
       <div class="ascii-div"></div>
       <div class="tile-body">
         <div class="clock-time" id="clock-time">--<span class="clock-cursor">:</span>--:--</div>
-      </div>
-    </div>
-
-    <div class="tile" id="tile-weather">
-      <div class="tile-head">WEATHER <span class="tag">CAHUITA, CR</span></div>
-      <div class="ascii-div"></div>
-      <div class="tile-body">
-        <div class="wx-now">
-          <div class="wx-temp" id="wx-temp">--&deg;</div>
-          <div class="wx-cond" id="wx-cond">—</div>
-        </div>
-        <div class="wx-sub" id="wx-humidity">HUMIDITY —</div>
-        <div class="wx-fc-row" id="wx-forecast">
-          <div class="wx-fc-day"><b>—</b>TOMORROW</div>
-          <div class="wx-fc-day"><b>—</b>DAY 3</div>
-        </div>
       </div>
     </div>
 
@@ -315,14 +298,31 @@
 
   <div class="row-bottom">
 
-    <div class="tile" id="tile-news">
-      <div class="tile-head">HEADLINES <span class="tag" id="news-tag">WORLD</span></div>
+    <div class="tile" id="tile-weather">
+      <div class="tile-head">WEATHER <span class="tag">CAHUITA, CR</span></div>
       <div class="ascii-div"></div>
       <div class="tile-body">
-        <div class="news-headline" id="news-headline">Loading headlines…</div>
-        <div class="news-source" id="news-source">—</div>
+        <div class="wx-grid">
+          <div class="wx-col">
+            <div class="wx-now">
+              <div class="wx-temp" id="wx-temp">--&deg;</div>
+              <div class="wx-cond" id="wx-cond">—</div>
+            </div>
+            <div class="wx2-sub">FEELS LIKE <b id="wx-feels">--&deg;</b></div>
+          </div>
+          <div class="wx-col">
+            <div class="wx2-sub">WIND <b id="wx-wind">—</b></div>
+            <div class="wx2-sub">HUMIDITY <b id="wx-humidity">—</b></div>
+            <div class="wx2-sub">PRESSURE <b id="wx-pressure">—</b></div>
+            <div class="wx2-sub">CLOUDS <b id="wx-clouds">—</b></div>
+            <div class="wx2-sub">PRECIP (6H) <b id="wx-precip">—</b></div>
+          </div>
+        </div>
+        <div class="wx-fc-row" id="wx-forecast">
+          <div class="wx-fc-day"><b>—</b>TOMORROW</div>
+          <div class="wx-fc-day"><b>—</b>DAY 3</div>
+        </div>
       </div>
-      <div class="news-dots" id="news-dots"></div>
     </div>
 
     <div class="tile" id="tile-critters">
@@ -355,6 +355,20 @@
   function safeCall(fn){
     try { fn(); } catch(e){ console.warn("kiosk: safeCall failed", e); }
   }
+  function compassBearing(deg){
+    var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    var b = ((deg % 360) + 360) % 360;
+    return dirs[Math.round(b / 45) % 8];
+  }
+  // fetch() can hang indefinitely on a stalled connection without ever
+  // resolving or rejecting -- which silently defeats a plain try/catch
+  // (the .catch() never fires, so the tile just sits stuck forever with
+  // no fallback and no stale indicator). Force a bound on it.
+  function fetchWithTimeout(url, timeoutMs){
+    var controller = new AbortController();
+    var timer = setTimeout(function(){ controller.abort(); }, timeoutMs);
+    return fetch(url, { signal: controller.signal }).finally(function(){ clearTimeout(timer); });
+  }
 
   /* ================= CLOCK ================= */
   function tickClock(){
@@ -364,6 +378,23 @@
   }
   tickClock();
   setInterval(tickClock, 1000);
+
+  /* ================= SCREEN WAKE LOCK ================= */
+  (function initWakeLock(){
+    var wakeLock = null;
+    function requestWakeLock(){
+      if (!("wakeLock" in navigator)) return;
+      navigator.wakeLock.request("screen")
+        .then(function(lock){ wakeLock = lock; })
+        .catch(function(err){ console.warn("wake lock request failed", err); });
+    }
+    document.addEventListener("visibilitychange", function(){
+      // some browsers release the lock when the tab is backgrounded and
+      // don't restore it automatically when it's refocused
+      if (document.visibilityState === "visible") requestWakeLock();
+    });
+    requestWakeLock();
+  })();
 
   /* ================= WEATHER ================= */
   var WMO = {
@@ -385,29 +416,51 @@
     return d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
   }
 
+  function renderWeather(data){
+    var cur = data.current, daily = data.daily, hourly = data.hourly;
+
+    document.getElementById("wx-temp").innerHTML = Math.round(cur.temperature_2m) + "&deg;C";
+    document.getElementById("wx-cond").textContent = wxLabel(cur.weather_code);
+    document.getElementById("wx-feels").innerHTML = Math.round(cur.apparent_temperature) + "&deg;C";
+    document.getElementById("wx-wind").textContent = Math.round(cur.wind_speed_10m) + " km/h " + compassBearing(cur.wind_direction_10m);
+    document.getElementById("wx-humidity").textContent = cur.relative_humidity_2m + "%";
+    document.getElementById("wx-pressure").textContent = Math.round(cur.pressure_msl) + " hPa";
+    document.getElementById("wx-clouds").textContent = cur.cloud_cover + "%";
+
+    var precipPct = "—";
+    if (hourly && hourly.time && hourly.precipitation_probability){
+      var idx = hourly.time.indexOf(cur.time);
+      if (idx >= 0){
+        var maxP = -1;
+        for (var k = idx; k < Math.min(idx + 6, hourly.precipitation_probability.length); k++){
+          if (hourly.precipitation_probability[k] > maxP) maxP = hourly.precipitation_probability[k];
+        }
+        if (maxP >= 0) precipPct = maxP + "%";
+      }
+    }
+    document.getElementById("wx-precip").textContent = precipPct;
+
+    var fcHtml = "";
+    for (var i = 1; i <= 2; i++){
+      if (!daily.time[i]) continue;
+      fcHtml += '<div class="wx-fc-day"><b>' + Math.round(daily.temperature_2m_max[i]) + '&deg;/' +
+        Math.round(daily.temperature_2m_min[i]) + '&deg;</b>' + dayName(daily.time[0], i) + '</div>';
+    }
+    document.getElementById("wx-forecast").innerHTML = fcHtml;
+  }
+
   function fetchWeather(){
     var url = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
-      "&current=temperature_2m,weather_code,relative_humidity_2m" +
+      "&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,pressure_msl,cloud_cover" +
+      "&hourly=precipitation_probability" +
       "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
       "&timezone=auto&forecast_days=3";
 
-    fetch(url)
+    fetchWithTimeout(url, 12000)
       .then(function(r){ if (!r.ok) throw new Error("wx http " + r.status); return r.json(); })
       .then(function(data){
-        var cur = data.current, daily = data.daily;
-        document.getElementById("wx-temp").innerHTML = Math.round(cur.temperature_2m) + "&deg;C";
-        document.getElementById("wx-cond").textContent = wxLabel(cur.weather_code);
-        document.getElementById("wx-humidity").innerHTML = "HUMIDITY <b>" + cur.relative_humidity_2m + "%</b>";
-
-        var fcHtml = "";
-        for (var i = 1; i <= 2; i++){
-          if (!daily.time[i]) continue;
-          fcHtml += '<div class="wx-fc-day"><b>' + Math.round(daily.temperature_2m_max[i]) + '&deg;/' +
-            Math.round(daily.temperature_2m_min[i]) + '&deg;</b>' + dayName(daily.time[0], i) + '</div>';
-        }
-        document.getElementById("wx-forecast").innerHTML = fcHtml;
+        renderWeather(data);
         setStale(document.getElementById("tile-weather"), false);
-
         try {
           localStorage.setItem("kiosk-wx", JSON.stringify({ t: Date.now(), data: data }));
         } catch(e){}
@@ -419,6 +472,16 @@
   }
   fetchWeather();
   setInterval(fetchWeather, 3600000);
+
+  (function primeWeatherFromCache(){
+    try {
+      var cached = JSON.parse(localStorage.getItem("kiosk-wx") || "null");
+      if (cached && cached.data){
+        renderWeather(cached.data);
+        setStale(document.getElementById("tile-weather"), true);
+      }
+    } catch(e){}
+  })();
 
   /* ================================================================ */
   /* SunCalc.js — vendored (BSD-2-Clause, (c) 2011-2015 Vladimir       */
@@ -767,7 +830,7 @@
     var offset;
     if (frac <= 0.5) offset = diameter * (1 - 2 * frac);
     else offset = -diameter * (2 * frac - 1);
-    visual.style.boxShadow = "inset " + offset.toFixed(1) + "px 0 0 0 #33ff66";
+    visual.style.boxShadow = "inset " + offset.toFixed(1) + "px 0 0 0 #f5f0e6";
   }
 
   function updateMoonPanel(){
@@ -873,62 +936,6 @@
   }
   safeCall(updateNextEvent);
   setInterval(function(){ safeCall(updateNextEvent); }, 86400000);
-
-  /* ================= NEWS ================= */
-  var newsItems = [];
-  var newsIndex = 0;
-  var newsFeedName = "BBC WORLD";
-
-  function renderNewsItem(){
-    var el = document.getElementById("news-headline");
-    var dotsEl = document.getElementById("news-dots");
-    if (!newsItems.length){
-      el.textContent = "— no headlines available —";
-      dotsEl.textContent = "";
-      return;
-    }
-    el.textContent = newsItems[newsIndex];
-    document.getElementById("news-source").textContent = newsFeedName + " · " + (newsIndex + 1) + "/" + newsItems.length;
-    var dots = "";
-    for (var i = 0; i < newsItems.length; i++) dots += (i === newsIndex ? "●" : "○");
-    dotsEl.textContent = dots;
-  }
-
-  function fetchNews(){
-    var rssUrl = encodeURIComponent("https://feeds.bbci.co.uk/news/world/rss.xml");
-    var url = "https://api.rss2json.com/v1/api.json?rss_url=" + rssUrl;
-
-    fetch(url)
-      .then(function(r){ if (!r.ok) throw new Error("news http " + r.status); return r.json(); })
-      .then(function(data){
-        if (!data.items || !data.items.length) throw new Error("no items");
-        var items = data.items.slice(0, 4).map(function(it){ return it.title; });
-        newsItems = items;
-        newsIndex = 0;
-        renderNewsItem();
-        setStale(document.getElementById("tile-news"), false);
-        try { localStorage.setItem("kiosk-news", JSON.stringify(items)); } catch(e){}
-      })
-      .catch(function(err){
-        console.warn("news fetch failed", err);
-        setStale(document.getElementById("tile-news"), true);
-        if (!newsItems.length){
-          try {
-            var cached = JSON.parse(localStorage.getItem("kiosk-news") || "null");
-            if (cached && cached.length){ newsItems = cached; renderNewsItem(); return; }
-          } catch(e){}
-          document.getElementById("news-headline").textContent = "—";
-          document.getElementById("news-source").textContent = "—";
-        }
-      });
-  }
-  fetchNews();
-  setInterval(fetchNews, 900000);
-  setInterval(function(){
-    if (!newsItems.length) return;
-    newsIndex = (newsIndex + 1) % newsItems.length;
-    renderNewsItem();
-  }, 8000);
 
   /* ================= CRITTERS: cat chasing lizard (canvas) ================= */
   (function initChase(){
@@ -1047,7 +1054,7 @@
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.facing, 1);
-      ctx.fillStyle = "#33ff66";
+      ctx.fillStyle = "#b87333";
       var px = 3;
       var legPhase = Math.floor(c.frame * 6) % 2;
       [[-1, -2], [1, -2], [-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-2, 1], [2, 1]].forEach(function(p){
@@ -1074,14 +1081,6 @@
     }
     document.addEventListener("click", goFullscreen, { once: true, passive: true });
     document.addEventListener("touchend", goFullscreen, { once: true, passive: true });
-  })();
-
-  /* ================= INIT FROM CACHE (instant paint before first fetch) ================= */
-  (function primeFromCache(){
-    try {
-      var news = JSON.parse(localStorage.getItem("kiosk-news") || "null");
-      if (news && news.length){ newsItems = news; renderNewsItem(); }
-    } catch(e){}
   })();
 
 })();
