@@ -19,14 +19,16 @@
     --cream-dim:#a39c8c;
     --cyan:#4fb3bf;
     --amber:#d99a3d;
-    --magenta:#b566a3;
+    --violet:#9483c9;
     --border:#4a2f16;
   }
 
   *{ box-sizing:border-box; margin:0; padding:0; }
 
   html,body{
-    width:100%; height:100%;
+    width:100%;
+    height:100vh;
+    height:100dvh; /* shrinks to the *visible* viewport when browser chrome is on screen, so nothing sits below the fold */
     background:var(--bg);
     overflow:hidden;
     -webkit-user-select:none; user-select:none;
@@ -42,29 +44,45 @@
   /* ---------- layout ---------- */
 
   .dashboard{
-    width:100vw; height:100vh;
+    width:100vw;
+    height:100vh;
+    height:100dvh;
     display:grid;
-    grid-template-rows: 18vh 20vh 1fr;
+    grid-template-rows: 28vh 31vh 1fr;
     gap:0.55vw;
     padding:0.55vw;
+    overflow:hidden;
   }
 
+  /* min-height:0 is load-bearing here: these row wrappers are grid ROW
+     ITEMS of .dashboard, and a grid item's default min-height is "auto"
+     (its content's natural size), not 0 -- so without this, a row whose
+     tile content is taller than its 1fr/vh track allocation would force
+     the whole row (and everything below it) past the viewport instead of
+     shrinking to fit, silently clipped by body's overflow:hidden. That's
+     the exact "bottom row cut off" symptom this exists to prevent. */
   .row-top{
     display:grid;
-    grid-template-columns: 1fr 1.3fr;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
     gap:0.55vw;
+    min-height:0;
   }
 
   .row-astro{
     display:grid;
-    grid-template-columns: 1.1fr 0.9fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-auto-rows: 1fr;
     gap:0.55vw;
+    min-height:0;
   }
 
   .row-bottom{
     display:grid;
-    grid-template-columns: 1.15fr 1fr;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
     gap:0.55vw;
+    min-height:0;
   }
 
   /* ---------- tiles ---------- */
@@ -77,6 +95,8 @@
     display:flex;
     flex-direction:column;
     overflow:hidden;
+    min-width:0;
+    min-height:0;
   }
 
   .tile-head{
@@ -118,12 +138,18 @@
     justify-content:center;
   }
 
+  /* ---------- shared stat-line pattern (small dim label, big bright value) ---------- */
+
+  .stat-line{ display:flex; align-items:baseline; gap:0.5vw; margin-top:0.35vw; }
+  .stat-line .lbl{ font-size:0.8vw; color:var(--copper-dim); letter-spacing:0.03vw; white-space:nowrap; }
+  .stat-line b{ font-size:1.85vw; font-weight:700; color:var(--copper); line-height:1; }
+
   /* ---------- clock ---------- */
 
   #tile-clock{ --accent:var(--pink); }
   #tile-clock .tile-body{ align-items:center; }
   .clock-time{
-    font-size:4vw;
+    font-size:5.6vw;
     font-weight:700;
     letter-spacing:0.15vw;
     color:var(--pink);
@@ -135,69 +161,67 @@
 
   /* ---------- weather ---------- */
 
-  #tile-weather{ --accent:var(--cyan); }
+  #tile-weather{ --accent:var(--copper); }
   .wx-now{ display:flex; align-items:baseline; gap:0.9vw; }
   .wx-temp{
-    font-size:4.2vw; font-weight:700; color:var(--copper);
+    font-size:4.4vw; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
   }
-  .wx-cond{ font-size:1.4vw; color:var(--cyan); letter-spacing:0.05vw; }
-  .wx-sub{ margin-top:0.15vw; font-size:0.9vw; color:var(--copper-dim); line-height:1.2; }
-  .wx-sub b{ color:var(--copper); font-weight:700; }
-  .wx-fc-row{ display:flex; gap:1.35vw; margin-top:0.6vw; }
-  .wx-fc-day{ font-size:1vw; color:var(--cyan); }
-  .wx-fc-day b{ color:var(--copper); display:block; font-size:1.2vw; }
+  .wx-cond{ font-size:1.5vw; color:var(--cream); letter-spacing:0.05vw; }
+  .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.7vw; }
+  .wx-fc-day{ font-size:1vw; color:var(--copper-dim); }
+  .wx-fc-day b{ color:var(--copper); display:block; font-size:1.6vw; }
 
-  .wx-grid{ display:flex; gap:2.4vw; }
+  .wx-grid{ display:flex; gap:2.6vw; }
   .wx-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
-  .wx2-sub{ font-size:1.05vw; color:var(--copper-dim); line-height:1.85; }
-  .wx2-sub b{ color:var(--copper); font-weight:700; }
+  .wx-col .stat-line:first-child{ margin-top:0.15vw; }
 
   /* ---------- sun ---------- */
 
   #tile-sun{ --accent:var(--amber); }
   .sun-hero{
-    font-size:2.3vw; font-weight:700; color:var(--copper);
+    font-size:3vw; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
     font-variant-numeric: tabular-nums;
   }
-  .sun-hero-label{ font-size:0.78vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.25vw; }
+  .sun-hero-label{ font-size:0.8vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.15vw; }
+  #tile-sun .stat-line{ margin-top:0.2vw; }
 
   /* ---------- moon ---------- */
 
-  #tile-moon{ --accent:var(--magenta); }
+  #tile-moon{ --accent:var(--cream); }
   .moonuv-row{ display:flex; align-items:center; gap:1.15vw; }
   .moon-visual{
-    width:3.4vw; aspect-ratio:1/1; min-width:3.4vw;
+    width:4.4vw; aspect-ratio:1/1; min-width:4.4vw;
     border-radius:50%;
-    border:1px solid var(--magenta);
+    border:1px solid var(--cream);
     background:#050505;
     box-shadow: inset 0 0 0 0 var(--cream);
   }
-  .moon-info{ font-size:0.95vw; line-height:1.4; }
-  .moon-info .phase-name{ color:var(--cream); font-size:1.1vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
-  .moon-info .dim{ color:var(--magenta); opacity:0.85; }
-  #tile-moon .wx-sub{ color:var(--cream-dim); }
-  #tile-moon .wx-sub b{ color:var(--cream); }
+  .moon-info{ font-size:1.05vw; line-height:1.35; }
+  .moon-info .phase-name{ color:var(--cream); font-size:1.5vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
+  .moon-info .dim{ color:var(--cream-dim); }
+  #tile-moon .stat-line .lbl{ color:var(--cream-dim); }
+  #tile-moon .stat-line b{ color:var(--cream); }
 
   /* ---------- planets ---------- */
 
   #tile-planets{ --accent:var(--cyan); }
-  .planet-line{ font-size:1vw; line-height:1.55; color:var(--copper); }
-  .planet-line b{ color:var(--cyan); margin-right:0.35vw; }
-  .planet-line.dim{ color:var(--copper-dim); font-size:0.95vw; }
+  .planet-line{ font-size:1.7vw; line-height:1.4; color:var(--cyan); }
+  .planet-line b{ color:var(--copper); margin-right:0.35vw; }
+  .planet-line.dim{ color:var(--copper-dim); font-size:1.1vw; }
 
   /* ---------- next event ---------- */
 
-  #tile-nextevent{ --accent:var(--amber); }
-  .ne-line{ font-size:0.95vw; line-height:1.65; color:var(--copper); }
-  .ne-label{ color:var(--cyan); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
+  #tile-nextevent{ --accent:var(--violet); }
+  .ne-line{ font-size:1.5vw; line-height:1.5; color:var(--violet); }
+  .ne-label{ color:var(--violet); opacity:0.65; font-weight:700; margin-right:0.35vw; font-size:0.85vw; display:block; }
   .ne-line b{ color:var(--copper); font-weight:700; }
-  .ne-tag{ color:var(--magenta); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
+  .ne-tag{ color:var(--violet); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
 
   /* ---------- critters (cat & lizard chase) ---------- */
 
-  #tile-critters{ --accent:var(--magenta); }
+  #tile-critters{ --accent:var(--violet); }
   #chase-canvas{ display:block; width:100%; height:100%; }
 
   /* ---------- CRT overlay effects ---------- */
@@ -251,8 +275,9 @@
       <div class="tile-body">
         <div class="sun-hero" id="sun-daylight">--:--:--</div>
         <div class="sun-hero-label" id="sun-daylight-label">DAYLIGHT REMAINING</div>
-        <div class="wx-sub">RISE <b id="sun-rise">--:--</b> &nbsp; SET <b id="sun-set">--:--</b></div>
-        <div class="wx-sub">SOLAR NOON <b id="sun-noon">--:--</b></div>
+        <div class="stat-line"><span class="lbl">RISE</span><b id="sun-rise">--:--</b></div>
+        <div class="stat-line"><span class="lbl">SET</span><b id="sun-set">--:--</b></div>
+        <div class="stat-line"><span class="lbl">SOLAR NOON</span><b id="sun-noon">--:--</b></div>
       </div>
     </div>
 
@@ -271,8 +296,9 @@
             <span class="dim" id="moon-illum">—% illuminated</span>
           </div>
         </div>
-        <div class="wx-sub">RISE <b id="moon-rise">--:--</b> &nbsp; SET <b id="moon-set">--:--</b></div>
-        <div class="wx-sub">DISTANCE <b id="moon-dist">—</b> km</div>
+        <div class="stat-line"><span class="lbl">RISE</span><b id="moon-rise">--:--</b></div>
+        <div class="stat-line"><span class="lbl">SET</span><b id="moon-set">--:--</b></div>
+        <div class="stat-line"><span class="lbl">DISTANCE</span><b id="moon-dist">—</b></div>
       </div>
     </div>
 
@@ -308,14 +334,14 @@
               <div class="wx-temp" id="wx-temp">--&deg;</div>
               <div class="wx-cond" id="wx-cond">—</div>
             </div>
-            <div class="wx2-sub">FEELS LIKE <b id="wx-feels">--&deg;</b></div>
+            <div class="stat-line"><span class="lbl">FEELS LIKE</span><b id="wx-feels">--&deg;</b></div>
           </div>
           <div class="wx-col">
-            <div class="wx2-sub">WIND <b id="wx-wind">—</b></div>
-            <div class="wx2-sub">HUMIDITY <b id="wx-humidity">—</b></div>
-            <div class="wx2-sub">PRESSURE <b id="wx-pressure">—</b></div>
-            <div class="wx2-sub">CLOUDS <b id="wx-clouds">—</b></div>
-            <div class="wx2-sub">PRECIP (6H) <b id="wx-precip">—</b></div>
+            <div class="stat-line"><span class="lbl">WIND</span><b id="wx-wind">—</b></div>
+            <div class="stat-line"><span class="lbl">HUMIDITY</span><b id="wx-humidity">—</b></div>
+            <div class="stat-line"><span class="lbl">PRESSURE</span><b id="wx-pressure">—</b></div>
+            <div class="stat-line"><span class="lbl">CLOUDS</span><b id="wx-clouds">—</b></div>
+            <div class="stat-line"><span class="lbl">PRECIP (6H)</span><b id="wx-precip">—</b></div>
           </div>
         </div>
         <div class="wx-fc-row" id="wx-forecast">
@@ -394,6 +420,35 @@
       if (document.visibilityState === "visible") requestWakeLock();
     });
     requestWakeLock();
+  })();
+
+  /* ================= FULLSCREEN ON TAP ================= */
+  // requestFullscreen() must run synchronously inside a trusted-gesture
+  // event handler, with nothing async in between -- otherwise many mobile
+  // browsers silently reject it. This keeps listening (no {once:true}) on
+  // every plausible gesture type and re-tries on every tap until it's
+  // actually confirmed active, since a single attempt can fail on some
+  // WebViews for reasons outside our control (and the user may back out
+  // of fullscreen later, e.g. via a system gesture, and tap again).
+  (function initFullscreenOnTap(){
+    function isFullscreen(){
+      return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+        document.mozFullScreenElement || document.msFullscreenElement);
+    }
+    function onGesture(){
+      if (isFullscreen()) return;
+      var el = document.documentElement;
+      var req = el.requestFullscreen || el.webkitRequestFullscreen ||
+        el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (!req) return;
+      try {
+        var p = req.call(el);
+        if (p && typeof p.catch === "function") p.catch(function(){});
+      } catch(e){}
+    }
+    ["click", "touchend", "pointerdown"].forEach(function(type){
+      document.addEventListener(type, onGesture, { passive: true });
+    });
   })();
 
   /* ================= WEATHER ================= */
@@ -952,9 +1007,8 @@
       canvas.width = Math.round(W * dpr);
       canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      initTrees();
     }
-    window.addEventListener("resize", resize);
-    resize();
 
     function rand(a, b){ return a + Math.random() * (b - a); }
     function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
@@ -964,6 +1018,62 @@
       if (d < -Math.PI) d += Math.PI * 2;
       return d;
     }
+
+    /* ---- ambient background: pine-tree silhouettes that softly pulse ---- */
+    var TREE_COUNT = 5;
+    var TREE_COLORS = [[110, 69, 31], [90, 76, 150], [50, 110, 115]]; // dim copper, dim violet, dim cyan
+    var trees = [];
+    function initTrees(){
+      trees = [];
+      for (var i = 0; i < TREE_COUNT; i++){
+        trees.push({
+          xFrac: (i + 0.5) / TREE_COUNT + rand(-0.06, 0.06),
+          yFrac: rand(0.35, 0.88),
+          size: rand(0.05, 0.09) * Math.min(W, H) + 10,
+          phase: rand(0, Math.PI * 2),
+          speed: rand(0.08, 0.2),
+          colorPhase: rand(0, Math.PI * 2)
+        });
+      }
+    }
+    function lerpTreeColor(t){
+      var n = TREE_COLORS.length;
+      var scaled = ((t % 1) + 1) % 1 * n;
+      var i = Math.floor(scaled) % n;
+      var j = (i + 1) % n;
+      var f = scaled - Math.floor(scaled);
+      var a = TREE_COLORS[i], b = TREE_COLORS[j];
+      return "rgb(" + Math.round(a[0] + (b[0] - a[0]) * f) + "," +
+        Math.round(a[1] + (b[1] - a[1]) * f) + "," +
+        Math.round(a[2] + (b[2] - a[2]) * f) + ")";
+    }
+    function drawTree(x, y, size, opacity, color){
+      if (opacity <= 0.005) return;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x - size * 0.5, y + size * 0.28);
+      ctx.lineTo(x + size * 0.5, y + size * 0.28);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(x - size * 0.07, y + size * 0.28, size * 0.14, size * 0.22);
+      ctx.restore();
+    }
+    function drawTrees(tSec){
+      trees.forEach(function(tree){
+        // mostly near-invisible, with slow, staggered, non-synced bumps --
+        // reads as occasional ambient life rather than constant breathing
+        var wave = Math.max(0, Math.sin(tSec * tree.speed + tree.phase));
+        var opacity = Math.pow(wave, 3) * 0.4;
+        var color = lerpTreeColor(tSec * 0.015 + tree.colorPhase / (Math.PI * 2));
+        drawTree(tree.xFrac * W, tree.yFrac * H, tree.size, opacity, color);
+      });
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
 
     function makeCritter(){
       return {
@@ -1023,12 +1133,13 @@
       lizard.frame += dt;
       cat.frame += dt;
 
-      draw();
+      draw(tMs / 1000);
       requestAnimationFrame(step);
     }
 
-    function draw(){
+    function draw(tSec){
       ctx.clearRect(0, 0, W, H);
+      drawTrees(tSec);
       drawLizard(lizard);
       drawCat(cat);
     }
@@ -1041,46 +1152,56 @@
       var px = 2.4;
       var legPhase = Math.floor(c.frame * 8) % 2;
       [[-3, 0], [-2, 0], [-1, 0], [0, 0], [1, -1], [2, -1]].forEach(function(p){
-        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.6, px - 0.6);
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.15, px - 0.15);
       });
-      ctx.fillRect(-5 * px - px / 2, (legPhase ? 1 : 0) * px - px / 2, px - 0.6, px - 0.6);
+      ctx.fillRect(-5 * px - px / 2, (legPhase ? 1 : 0) * px - px / 2, px - 0.15, px - 0.15);
       var legY = legPhase ? 1 : -1;
-      ctx.fillRect(-1.5 * px - px / 2, legY * px * 1.4 - px / 2, px - 1, px - 1);
-      ctx.fillRect(0.5 * px - px / 2, -legY * px * 1.4 - px / 2, px - 1, px - 1);
+      ctx.fillRect(-1.5 * px - px / 2, legY * px * 1.4 - px / 2, px - 0.6, px - 0.6);
+      ctx.fillRect(0.5 * px - px / 2, -legY * px * 1.4 - px / 2, px - 0.6, px - 0.6);
       ctx.restore();
     }
 
+    // A proper little creature rather than a floating head: solid
+    // ears+head, a two-row body for actual bulk, a tail curling up off
+    // the back, and four legs -- still plain filled blocks (no shading
+    // or outline), just packed close enough to read as one connected
+    // silhouette instead of scattered dots.
     function drawCat(c){
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.facing, 1);
       ctx.fillStyle = "#b87333";
-      var px = 3;
+      var px = 2.6;
+      var gap = 0.25;
       var legPhase = Math.floor(c.frame * 6) % 2;
-      [[-1, -2], [1, -2], [-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-2, 1], [2, 1]].forEach(function(p){
-        var y = p[1];
-        if (p[0] === -2 || p[0] === 2) y += legPhase ? 0 : 0.4;
-        ctx.fillRect(p[0] * px - px / 2, y * px - px / 2, px - 0.6, px - 0.6);
+      // ears (two nubs) sitting atop a solid head row
+      [[-4, -2], [-2, -2]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+      [[-4, -1], [-3, -1], [-2, -1]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+      // body: two stacked rows so it reads as an actual torso, not a line
+      [[-1, -1], [0, -1], [1, -1]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+      [[-1, 0], [0, 0], [1, 0]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+      // tail, curling up off the back of the body
+      [[2, -1], [3, -2], [3, -3]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
+      });
+      // legs, alternating for a walk cycle
+      var legY = legPhase ? 1 : 0.7;
+      var legY2 = legPhase ? 0.7 : 1;
+      [[-0.5, legY], [0.5, legY2]].forEach(function(p){
+        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.6, px - 0.6);
       });
       ctx.restore();
     }
 
     requestAnimationFrame(step);
-  })();
-
-  /* ================= FULLSCREEN ON FIRST TAP ================= */
-  (function initFullscreenOnTap(){
-    function goFullscreen(){
-      var el = document.documentElement;
-      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-      if (!req) return;
-      try {
-        var p = req.call(el);
-        if (p && typeof p.catch === "function") p.catch(function(){});
-      } catch(e){}
-    }
-    document.addEventListener("click", goFullscreen, { once: true, passive: true });
-    document.addEventListener("touchend", goFullscreen, { once: true, passive: true });
   })();
 
 })();
