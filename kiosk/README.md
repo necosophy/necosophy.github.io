@@ -29,16 +29,24 @@ Three rows: two tiles, three tiles, two larger tiles.
   and 6-hour precipitation probability on the right, plus a 2-day forecast
   strip along the bottom. Via [Open-Meteo](https://open-meteo.com/) (no
   API key).
-- **Critters** (violet) — a small canvas animation: a copper cat with a
-  proper body and a curling tail, chasing an amber lizard around the tile
-  past a handful of faint pine-silhouette shapes that drift in and out of
-  view in the background. Both critters wander with randomized paths; the
-  lizard darts erratically now and then, and the cat is always a little
-  slower, so it never actually catches it.
+- **Critters** (violet) — a small canvas animation: a copper cat (roughly
+  twice the size of the lizard, legs shown as thin stroked lines) chasing
+  an amber lizard around the tile, past a handful of faint pine-silhouette
+  shapes that drift in and out of view in the background. Both critters
+  wander with randomized paths; the lizard darts erratically and
+  occasionally flicks a small forked tongue, and the cat is always a
+  little slower, so it never actually catches it.
 
 Each tile's accent color is chosen so no two *adjacent* tiles share one —
 see "Colors/accents" under Adjusting for the full palette and the
 adjacency reasoning.
+
+Every tile's content — headers, labels, values — is centered rather than
+left-aligned, and every label/value data row (RISE/SET, WIND/HUMIDITY/etc.)
+uses one shared pattern: a fixed-width row with the label pinned to the
+left edge and the value pinned to the right, so every row in a tile lands
+on the same two column positions instead of running together at
+inconsistent spacing. See "Data vs. label sizing" under Adjusting.
 
 Everything is a single static `index.html` — inline CSS and JS, no build
 step, no dependencies beyond a Google Fonts link.
@@ -134,6 +142,21 @@ height, comfortably past any real Android address bar) with a full
 Playwright overflow check at each step — zero overflow anywhere in that
 range, both before and after the grid fix confirmed the difference.
 
+**Known gap:** on-device testing on Brave for Android found the address
+bar still visible after tapping. The gesture-handling logic itself
+checked out under both synthetic mouse and touch events in real desktop
+Chromium (same rendering engine Brave is built on) during development,
+so it's not yet confirmed whether Brave on Android specifically rejects
+the request, doesn't fire the tap listeners as expected, or just doesn't
+hide its own chrome even when the page's fullscreen state is genuinely
+active — that would need on-device remote debugging (e.g. `chrome://inspect`
+against Brave) to pin down. Firefox for Android has been confirmed to
+work correctly on this same page, so it's the current recommendation if
+Brave is the browser you'd otherwise reach for. Fully Kiosk Browser's own
+Kiosk Mode settings (below) are the more robust fix regardless of which
+browser engine sits underneath, since they suppress the browser's chrome
+directly rather than depending on the page's fullscreen request at all.
+
 ## Screen wake lock
 
 The page requests the [Screen Wake Lock
@@ -228,11 +251,25 @@ Everything lives in `kiosk/index.html`:
   an edge repeat a color. Check adjacency before reusing a tone if you
   rearrange tiles. `--copper-dim`/`--cream-dim` are dimmed variants used
   for label text.
-- **Data vs. label sizing** — the small dim-label / large-bright-value
-  pattern used throughout (RISE/SET/WIND/etc.) is one shared CSS class,
-  `.stat-line` (with `.lbl` for the label and a `<b>` for the value) —
-  change its two font-size declarations to rebalance every tile's data
-  legibility at once, rather than hunting through each tile's own CSS.
+- **Data vs. label sizing and alignment** — the small dim-label /
+  large-bright-value pattern used throughout (RISE/SET/WIND/etc.) is one
+  shared CSS class, `.stat-line` (`.lbl` for the label, a `<b>` for the
+  value), laid out as `display:flex; justify-content:space-between` at a
+  *fixed* width set via the `--stat-w` custom property — every row in a
+  tile shares the same `--stat-w`, so as a group they line up into a real
+  two-column table even though each row is independently centered within
+  the tile. `--stat-w` is set once per tile (e.g. `#tile-sun{--stat-w:12vw;}`);
+  Weather sets it separately per column since its two columns hold very
+  different content (`.wx-col:first-child`/`:last-child`). Next Event's
+  `.ne-line` and Planets' `.planet-line` use the identical technique with
+  their own width, since their content doesn't fit the shared class
+  cleanly. **If you widen any label or value text, check `--stat-w` still
+  fits it** — too narrow and the text silently wraps onto two lines
+  instead of overflowing visibly, which is easy to miss without an actual
+  screenshot (this happened during development: `white-space:nowrap` is
+  set on every label/value as a backstop, but the width itself still needs
+  to be generous enough that content is never forced to shrink below its
+  natural size in the first place).
 - **Fetch timeout** — the `12000` (ms) argument to `fetchWithTimeout` in
   the weather fetch; raise it if you're on a persistently slow connection
   and 12s is triggering false "stale" states.

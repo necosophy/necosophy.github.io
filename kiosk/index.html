@@ -100,9 +100,8 @@
   }
 
   .tile-head{
-    display:flex;
-    justify-content:space-between;
-    align-items:baseline;
+    position:relative;
+    text-align:center;
     font-size:1.1vw;
     letter-spacing:0.13vw;
     color:var(--accent, var(--copper));
@@ -111,7 +110,13 @@
     text-shadow:0 0 5px currentColor;
   }
 
+  /* kept out of the centered flow so the title stays dead-center
+     regardless of whether a tile has a tag */
   .tile-head .tag{
+    position:absolute;
+    right:0;
+    top:50%;
+    transform:translateY(-50%);
     font-size:0.95vw;
     opacity:0.55;
     letter-spacing:0.05vw;
@@ -136,18 +141,28 @@
     display:flex;
     flex-direction:column;
     justify-content:center;
+    align-items:center;
   }
 
-  /* ---------- shared stat-line pattern (small dim label, big bright value) ---------- */
+  /* ---------- shared stat-line pattern: fixed-width row, label pinned to
+     the left edge, value pinned to the right edge. Every row in a tile
+     shares the same --stat-w, so as a group they read as a real two-column
+     table (label column / value column) even though each row is centered
+     as its own flex item -- same width in, same left/right edges out. ---------- */
 
-  .stat-line{ display:flex; align-items:baseline; gap:0.5vw; margin-top:0.35vw; }
+  .stat-line{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    width:var(--stat-w, 10vw);
+    margin-top:0.35vw;
+  }
   .stat-line .lbl{ font-size:0.8vw; color:var(--copper-dim); letter-spacing:0.03vw; white-space:nowrap; }
-  .stat-line b{ font-size:1.85vw; font-weight:700; color:var(--copper); line-height:1; }
+  .stat-line b{ font-size:1.85vw; font-weight:700; color:var(--copper); line-height:1; white-space:nowrap; }
 
   /* ---------- clock ---------- */
 
   #tile-clock{ --accent:var(--pink); }
-  #tile-clock .tile-body{ align-items:center; }
   .clock-time{
     font-size:5.6vw;
     font-weight:700;
@@ -169,16 +184,18 @@
   }
   .wx-cond{ font-size:1.5vw; color:var(--cream); letter-spacing:0.05vw; }
   .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.7vw; }
-  .wx-fc-day{ font-size:1vw; color:var(--copper-dim); }
+  .wx-fc-day{ font-size:1vw; color:var(--copper-dim); text-align:center; }
   .wx-fc-day b{ color:var(--copper); display:block; font-size:1.6vw; }
 
-  .wx-grid{ display:flex; gap:2.6vw; }
-  .wx-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .wx-grid{ display:flex; gap:2.8vw; }
+  .wx-col{ flex:0 0 auto; min-width:0; display:flex; flex-direction:column; align-items:flex-start; }
+  .wx-col:first-child{ --stat-w:11vw; align-items:center; }
+  .wx-col:last-child{ --stat-w:14.5vw; }
   .wx-col .stat-line:first-child{ margin-top:0.15vw; }
 
   /* ---------- sun ---------- */
 
-  #tile-sun{ --accent:var(--amber); }
+  #tile-sun{ --accent:var(--amber); --stat-w:12vw; }
   .sun-hero{
     font-size:3vw; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
@@ -189,7 +206,7 @@
 
   /* ---------- moon ---------- */
 
-  #tile-moon{ --accent:var(--cream); }
+  #tile-moon{ --accent:var(--cream); --stat-w:12vw; }
   .moonuv-row{ display:flex; align-items:center; gap:1.15vw; }
   .moon-visual{
     width:4.4vw; aspect-ratio:1/1; min-width:4.4vw;
@@ -207,16 +224,26 @@
   /* ---------- planets ---------- */
 
   #tile-planets{ --accent:var(--cyan); }
-  .planet-line{ font-size:1.7vw; line-height:1.4; color:var(--cyan); }
-  .planet-line b{ color:var(--copper); margin-right:0.35vw; }
-  .planet-line.dim{ color:var(--copper-dim); font-size:1.1vw; }
+  .planet-line{
+    display:flex; justify-content:space-between; align-items:baseline;
+    width:17vw; margin:0 auto;
+    font-size:1.7vw; line-height:1.4; color:var(--cyan);
+  }
+  .planet-line b{ color:var(--copper); white-space:nowrap; }
+  .planet-line .val{ white-space:nowrap; }
+  .planet-line.dim{ display:block; width:auto; color:var(--copper-dim); font-size:1.1vw; text-align:center; }
 
   /* ---------- next event ---------- */
 
-  #tile-nextevent{ --accent:var(--violet); }
-  .ne-line{ font-size:1.5vw; line-height:1.5; color:var(--violet); }
-  .ne-label{ color:var(--violet); opacity:0.65; font-weight:700; margin-right:0.35vw; font-size:0.85vw; display:block; }
-  .ne-line b{ color:var(--copper); font-weight:700; }
+  #tile-nextevent{ --accent:var(--violet); --stat-w:19vw; }
+  .ne-line{
+    display:flex; justify-content:space-between; align-items:baseline;
+    width:var(--stat-w); margin-top:0.35vw;
+    font-size:1.5vw; line-height:1.5; color:var(--violet);
+  }
+  .ne-label{ color:var(--violet); opacity:0.65; font-weight:700; font-size:0.85vw; white-space:nowrap; }
+  .ne-line b{ color:var(--copper); font-weight:700; white-space:nowrap; }
+  #ne-extra{ display:block; width:auto; text-align:center; }
   .ne-tag{ color:var(--violet); font-weight:700; margin-right:0.35vw; font-size:0.85vw; }
 
   /* ---------- critters (cat & lizard chase) ---------- */
@@ -811,8 +838,8 @@
 
     visible.sort(function(a, b){ return b.alt - a.alt; });
     body.innerHTML = visible.map(function(p){
-      return '<div class="planet-line"><b>' + p.name.toUpperCase() + '</b>' +
-        compassFromSouthAz(p.az) + ' ' + Math.round(p.alt) + '&deg;</div>';
+      return '<div class="planet-line"><b>' + p.name.toUpperCase() + '</b><span class="val">' +
+        compassFromSouthAz(p.az) + ' ' + Math.round(p.alt) + '&deg;</span></div>';
     }).join("");
   }
   safeCall(updatePlanets);
@@ -1075,27 +1102,31 @@
     window.addEventListener("resize", resize);
     resize();
 
-    function makeCritter(){
+    function makeCritter(inset){
+      inset = inset || 12;
       return {
-        x: rand(12, Math.max(13, W - 12)),
-        y: rand(12, Math.max(13, H - 12)),
+        x: rand(inset, Math.max(inset + 1, W - inset)),
+        y: rand(inset, Math.max(inset + 1, H - inset)),
         angle: rand(0, Math.PI * 2),
         facing: 1,
         frame: 0,
-        dartUntil: 0
+        dartUntil: 0,
+        tongueUntil: 0
       };
     }
 
-    var lizard = makeCritter();
-    var cat = makeCritter();
+    var CAT_BOUNCE_MARGIN = 20; // the cat's sprite is much bigger now, needs more room before it bounces off a wall
+    var lizard = makeCritter(10);
+    var cat = makeCritter(CAT_BOUNCE_MARGIN);
 
     var BASE_LIZARD_SPEED = 24; // px/sec — cat's base speed is always lower, so it never catches up
-    var BASE_CAT_SPEED = 17;
+    var BASE_CAT_SPEED = 19;
+    var nextTongueAt = performance.now() + rand(2000, 5000);
     var nextDartAt = performance.now() + rand(1500, 4000);
     var lastT = null;
 
-    function bounce(c){
-      var m = 10;
+    function bounce(c, m){
+      m = m || 10;
       if (c.x < m){ c.x = m; c.angle = Math.PI - c.angle; }
       if (c.x > W - m){ c.x = W - m; c.angle = Math.PI - c.angle; }
       if (c.y < m){ c.y = m; c.angle = -c.angle; }
@@ -1112,52 +1143,80 @@
         lizard.dartUntil = tMs + rand(300, 600);
         nextDartAt = tMs + rand(2000, 5000);
       }
+      if (tMs > nextTongueAt && tMs > lizard.tongueUntil){
+        lizard.tongueUntil = tMs + rand(200, 350);
+        nextTongueAt = tMs + rand(3000, 7000);
+      }
       var darting = tMs < lizard.dartUntil;
       var lizardSpeed = darting ? BASE_LIZARD_SPEED * 3.2 : BASE_LIZARD_SPEED;
       lizard.angle += rand(-0.5, 0.5) * (darting ? 0.4 : 1);
       lizard.x += Math.cos(lizard.angle) * lizardSpeed * dt;
       lizard.y += Math.sin(lizard.angle) * lizardSpeed * dt;
       lizard.facing = Math.cos(lizard.angle) >= 0 ? 1 : -1;
-      bounce(lizard);
+      bounce(lizard, 10);
 
       var dx = lizard.x - cat.x, dy = lizard.y - cat.y;
       var dist = Math.sqrt(dx * dx + dy * dy);
       var targetAngle = Math.atan2(dy, dx);
       cat.angle += clamp(angleDiff(cat.angle, targetAngle), -2.2 * dt, 2.2 * dt) + rand(-0.15, 0.15) * dt * 10;
-      var catSpeed = BASE_CAT_SPEED * (dist < 18 ? 0.4 : 1);
+      var catSpeed = BASE_CAT_SPEED * (dist < 26 ? 0.4 : 1);
       cat.x += Math.cos(cat.angle) * catSpeed * dt;
       cat.y += Math.sin(cat.angle) * catSpeed * dt;
       cat.facing = Math.cos(cat.angle) >= 0 ? 1 : -1;
-      bounce(cat);
+      bounce(cat, CAT_BOUNCE_MARGIN);
 
       lizard.frame += dt;
       cat.frame += dt;
 
-      draw(tMs / 1000);
+      draw(tMs);
       requestAnimationFrame(step);
     }
 
-    function draw(tSec){
+    function draw(tMs){
       ctx.clearRect(0, 0, W, H);
-      drawTrees(tSec);
-      drawLizard(lizard);
+      drawTrees(tMs / 1000);
+      drawLizard(lizard, tMs < lizard.tongueUntil);
       drawCat(cat);
     }
 
-    function drawLizard(c){
+    function drawLizard(c, tongueOut){
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.facing, 1);
-      ctx.fillStyle = "#d99a3d";
+      var color = "#d99a3d";
+      ctx.fillStyle = color;
       var px = 2.4;
       var legPhase = Math.floor(c.frame * 8) % 2;
       [[-3, 0], [-2, 0], [-1, 0], [0, 0], [1, -1], [2, -1]].forEach(function(p){
         ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.15, px - 0.15);
       });
       ctx.fillRect(-5 * px - px / 2, (legPhase ? 1 : 0) * px - px / 2, px - 0.15, px - 0.15);
+
+      // legs as thin strokes rather than blocks -- reads more clearly as
+      // limbs in motion at this small scale
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.9;
       var legY = legPhase ? 1 : -1;
-      ctx.fillRect(-1.5 * px - px / 2, legY * px * 1.4 - px / 2, px - 0.6, px - 0.6);
-      ctx.fillRect(0.5 * px - px / 2, -legY * px * 1.4 - px / 2, px - 0.6, px - 0.6);
+      ctx.beginPath();
+      ctx.moveTo(-1.3 * px, 0.3 * px);
+      ctx.lineTo(-1.3 * px - 2.2, 0.3 * px + legY * px * 1.1);
+      ctx.moveTo(0.3 * px, -0.7 * px);
+      ctx.lineTo(0.3 * px + 2.2, -0.7 * px - legY * px * 1.1);
+      ctx.stroke();
+
+      // occasional forked tongue flick from the head
+      if (tongueOut){
+        ctx.strokeStyle = "#e0453f";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(2.5 * px, -1 * px);
+        ctx.lineTo(2.5 * px + 3.2, -1 * px);
+        ctx.moveTo(2.5 * px + 3.2, -1 * px);
+        ctx.lineTo(2.5 * px + 4.2, -1 * px - 0.7);
+        ctx.moveTo(2.5 * px + 3.2, -1 * px);
+        ctx.lineTo(2.5 * px + 4.2, -1 * px + 0.7);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -1170,9 +1229,10 @@
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.facing, 1);
-      ctx.fillStyle = "#b87333";
-      var px = 2.6;
-      var gap = 0.25;
+      var color = "#b87333";
+      ctx.fillStyle = color;
+      var px = 4.9; // roughly 2x the lizard's effective size -- cats are visibly bigger
+      var gap = 0.4;
       var legPhase = Math.floor(c.frame * 6) % 2;
       // ears (two nubs) sitting atop a solid head row
       [[-4, -2], [-2, -2]].forEach(function(p){
@@ -1192,12 +1252,18 @@
       [[2, -1], [3, -2], [3, -3]].forEach(function(p){
         ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - gap, px - gap);
       });
-      // legs, alternating for a walk cycle
-      var legY = legPhase ? 1 : 0.7;
-      var legY2 = legPhase ? 0.7 : 1;
-      [[-0.5, legY], [0.5, legY2]].forEach(function(p){
-        ctx.fillRect(p[0] * px - px / 2, p[1] * px - px / 2, px - 0.6, px - 0.6);
-      });
+      // legs as thin strokes, alternating for a walk cycle -- clearer
+      // limb motion than small blocks at this size
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.7;
+      var legY = legPhase ? 1.1 : 0.55;
+      var legY2 = legPhase ? 0.55 : 1.1;
+      ctx.beginPath();
+      ctx.moveTo(-0.6 * px, 0.55 * px);
+      ctx.lineTo(-0.6 * px, legY * px);
+      ctx.moveTo(0.6 * px, 0.55 * px);
+      ctx.lineTo(0.6 * px, legY2 * px);
+      ctx.stroke();
       ctx.restore();
     }
 
