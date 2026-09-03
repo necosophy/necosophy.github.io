@@ -38,6 +38,7 @@ Three rows: two tiles, three tiles, two larger tiles.
   background. Both critters wander with randomized paths; the lizard
   darts erratically and occasionally flicks a small forked tongue, and
   the cat is always a little slower, so it never actually catches it.
+  Tapping anywhere in the tile plays a sound — see "Tap-to-sound" below.
 
 Each tile's accent color is chosen so no two *adjacent* tiles share one —
 see "Colors/accents" under Adjusting for the full palette and the
@@ -75,6 +76,38 @@ computation:
   "NEXT CELESTIAL EVENT" section in `index.html`) covering into 2027.
   Unlike the meteor-shower table, this one is *not* self-perpetuating —
   extend it with future eclipse dates once it runs out.
+
+### Tap-to-sound (Cat & Lizard tile)
+
+Tapping anywhere inside the Cat & Lizard tile plays a sound, cycling
+through a fixed pattern rather than picking randomly: **meow, meow,
+purr**, then it repeats. A tap counter scoped to that tile (a closure
+variable in `initCritterSounds` in `index.html`) tracks where in the
+pattern the next tap lands:
+
+- Taps 1 and 2 play the short meow clip from the start. If a previous
+  playback (of either clip) is still running, it's stopped and reset to
+  0 first, so rapid tapping restarts cleanly instead of overlapping.
+- Tap 3 plays the long purr clip instead, and the counter resets so tap 4
+  is back to "tap 1" of a new cycle.
+- Tapping again while the purr is still playing (it runs ~91 seconds, so
+  this is the common case if someone taps twice) stops it immediately and
+  restarts the pattern from tap 1 — that tap counts as the new cycle's
+  first meow, not a continuation of the interrupted purr.
+
+Both clips are fetched at page load (`new Audio(...)` + `.load()`), which
+kicks off the request without blocking the rest of the dashboard's
+render, so the first tap doesn't have to wait on a fetch. If the audio
+fails to load or `play()` is rejected (e.g. no network, or a browser
+autoplay policy quirk), the failure is caught and logged to the console
+rather than throwing — tapping just silently does nothing, consistent
+with how every other tile on this dashboard degrades.
+
+The two clips live in `kiosk/audio/` (`cat-meow.mp3`, ~3s, ~122KB;
+`cat-purr.mp3`, ~91s, ~3.6MB), sourced from
+[BigSoundBank.com](https://bigsoundbank.com/) (catalog IDs 1889 and 1010
+respectively) — check that site's licensing terms for the specific files
+before reusing them outside this project.
 
 ## Resilience
 
