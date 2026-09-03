@@ -261,7 +261,7 @@
 
   /* ---------- critters (cat & lizard chase) ---------- */
 
-  #tile-critters{ --accent:var(--pink); }
+  #tile-critters{ --accent:var(--pink); cursor:pointer; }
   #chase-canvas{ display:block; width:100%; height:100%; }
 
   /* ---------- CRT overlay effects ---------- */
@@ -1294,6 +1294,61 @@
     }
 
     requestAnimationFrame(step);
+  })();
+
+  /* ================= CRITTERS: tap-to-sound ================= */
+  // Tapping the tile plays a short meow on taps 1 and 2, then the long
+  // purr on tap 3, then the counter resets so the pattern repeats. Both
+  // clips are fetched quietly at page load (new Audio() + .load() kicks
+  // off the request immediately without blocking rendering) so the first
+  // tap has no fetch delay.
+  (function initCritterSounds(){
+    var tile = document.getElementById("tile-critters");
+    if (!tile) return;
+
+    var meow = new Audio("audio/cat-meow.mp3");
+    var purr = new Audio("audio/cat-purr.mp3");
+    meow.preload = "auto";
+    purr.preload = "auto";
+    meow.load();
+    purr.load();
+
+    var tapCount = 0;
+
+    function stopClip(audio){
+      try { audio.pause(); audio.currentTime = 0; }
+      catch(e){ /* ignore -- currentTime can throw before metadata is ready */ }
+    }
+    function playClip(audio){
+      var p = audio.play();
+      if (p && p.catch) p.catch(function(e){ console.warn("kiosk: critter sound playback failed", e); });
+    }
+
+    function handleTap(){
+      var purrWasPlaying = !purr.paused && !purr.ended;
+      // always stop both clips first, whichever is playing -- a new tap
+      // never lets the previous sound keep running underneath it
+      stopClip(meow);
+      stopClip(purr);
+
+      if (purrWasPlaying){
+        // interrupting the purr always restarts the meow/meow/purr
+        // pattern from the top, regardless of where the counter was
+        tapCount = 1;
+        playClip(meow);
+        return;
+      }
+
+      tapCount++;
+      if (tapCount >= 3){
+        tapCount = 0;
+        playClip(purr);
+      } else {
+        playClip(meow);
+      }
+    }
+
+    tile.addEventListener("click", handleTap);
   })();
 
 })();
