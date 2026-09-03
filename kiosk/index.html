@@ -226,6 +226,17 @@
     border:1px solid var(--cream);
     background:#050505;
     box-shadow: inset 0 0 0 0 var(--cream);
+    /* ambient "breathing" life -- driven entirely by this CSS animation,
+       independent of the hourly updateMoonPanel() refresh, which only
+       ever touches this element's inline box-shadow (the illuminated-
+       crescent shape) and never its class or style.animation, so the
+       loop below just keeps running through every data refresh without
+       restarting or stuttering */
+    animation: moon-breathe 5s ease-in-out infinite;
+  }
+  @keyframes moon-breathe{
+    0%, 100%{ opacity:0.78; transform:scale(1); }
+    50%{ opacity:1; transform:scale(1.03); }
   }
   .moon-info{ font-size:1.05vw; line-height:1.15; }
   .moon-info .phase-name{ color:var(--cream); font-size:1.4vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
