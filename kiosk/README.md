@@ -144,26 +144,67 @@ height, comfortably past any real Android address bar) with a full
 Playwright overflow check at each step — zero overflow anywhere in that
 range, both before and after the grid fix confirmed the difference.
 
-**A further real-device report**: on-device testing (Firefox for Android,
-where fullscreen itself works — see the known gap below) found the Sun
-and Weather tiles' last row still clipped at the bottom edge, despite no
-overflow showing up in this project's Chromium-based testing at the same
-1920×1080 size. The suspected cause is a font-metric/line-height
-difference between Firefox's and Chromium's rendering of JetBrains Mono
-that this testing setup can't reproduce (this environment has no Firefox
-build available to verify against directly). Rather than chase an exact
-number blind, the fix was a generous one: `.dashboard`'s row split moved
-from `28vh 31vh 1fr` to `30vh 29vh 1fr` (more room for Sun, borrowed from
-Moon/Planets/Next&nbsp;Event's row, which had comfortable margin to
-spare), tile padding was trimmed slightly across the board, and Sun's and
-Weather's own internal spacing (hero font size, `stat-line` margins, the
-forecast row's top margin) was tightened further. Measured result in
-this project's own testing: roughly 40px of slack below Sun's and
-Weather's last row at 1920×1080 (up from effectively 0px before) — but
-since that's Chromium, **please confirm on the actual phone** that this
-is enough; if Firefox still clips, the next lever to pull is the same
-`grid-template-rows` split and the `--stat-w`/font-size values called out
-under Adjusting.
+**A further real-device report, round 1**: on-device testing (Firefox for
+Android, where fullscreen itself works — see the known gap below) found
+the Sun and Weather tiles' last row still clipped at the bottom edge,
+despite no overflow showing up in this project's Chromium-based testing
+at the same 1920×1080 size. The suspected cause was a font-metric/
+line-height difference between Firefox's and Chromium's rendering of
+JetBrains Mono that this testing setup couldn't reproduce (this
+environment has no Firefox build available to verify against directly).
+The fix applied then was a generous but untargeted one — more row height
+for Sun, trimmed tile padding, tightened Sun/Weather internal spacing —
+which measured out to roughly 40px of slack in this project's Chromium
+testing. **That fix turned out to be insufficient**: the same device
+still showed Moon's rise/set/distance numbers and Weather's forecast row
+touching or crossing the bottom border after that change shipped.
+
+**Round 2 — the actual root cause.** ~40px of slack sounds like a lot
+until you notice it was resting entirely on `justify-content:center`
+splitting whatever free space exists evenly above and below the tile's
+content — space, not a reserved minimum. Several elements in the Sun,
+Moon, and Weather tiles had no explicit `line-height` at all, relying on
+the browser's own "normal" default, which is derived from font metrics
+that genuinely differ between rendering engines (and can differ further
+depending on whether the JetBrains Mono webfont has finished loading vs.
+a fallback monospace font being used). That's not a hunch this time — it
+was reproduced directly: forcing `line-height: 1.5` on every text element
+in this project's own Chromium testing (simulating a browser with less
+generous default metrics, without needing an actual Firefox build) pushed
+Sun, Moon, and Weather from a comfortable-looking positive margin straight
+into `scrollHeight > clientHeight` overflow — i.e. exactly the clipping
+reported, from exactly the mechanism suspected: fixed-height tiles with
+content whose real height depends on metrics this project can't fully
+control or predict.
+
+The fix has two parts:
+1. **Every text element in every tile now sets an explicit `line-height`**
+   (down from `body` as a baseline default up to each individual rule),
+   so text height is deterministic instead of depending on a given
+   browser/font's idea of "normal."
+2. **Sun, Moon, and Weather's content was made meaningfully smaller** —
+   the moon's disc graphic, the sun's hero countdown digits, the weather
+   tile's temperature and stat values, and several `margin-top` values all
+   came down a notch — freeing real pixels rather than relying on
+   centering to distribute existing slack more favorably. Measured result
+   in this project's Chromium testing: normal-case slack below the last
+   row roughly *doubled* for all three tiles (Sun ~42px→~55px, Moon
+   ~23px→~42px, Weather ~41px→~63px, all now 13–17% of the tile's own
+   height instead of 7–13%), and — the number that actually matters here —
+   even under the artificial `line-height: 1.5` stress test described
+   above, all three tiles now stay positive (no overflow) instead of going
+   negative as they did before this round's fix.
+
+As before, **this is still Chromium-based reasoning, not a Firefox-for-
+Android reproduction** — this sandbox has no Firefox build to verify
+against directly, so please confirm on the actual phone. But unlike round
+1's fix, this one specifically targets and closes the exact failure mode
+(unset line-height + thin margins) that was directly demonstrated to
+reproduce the reported symptom, rather than adding an untargeted safety
+margin and hoping it was enough. If it still clips, the next lever is
+comparing Firefox's actual rendered `line-height` for JetBrains Mono
+against the values assumed here (via on-device remote debugging), since
+that's now the one variable this testing setup genuinely cannot observe.
 
 **Known gap:** on-device testing on Brave for Android found the address
 bar still visible after tapping. The gesture-handling logic itself

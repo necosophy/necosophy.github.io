@@ -39,6 +39,14 @@
     font-family:'JetBrains Mono', 'Space Mono', monospace;
     color:var(--copper);
     font-weight:400;
+    /* explicit baseline so text height is deterministic instead of relying
+       on the "normal" line-height, which is font/browser-dependent and was
+       measured (via a simulated 1.5-line-height stress test) to be enough
+       on its own to push Sun/Moon/Weather content past their tile's bottom
+       border on a browser with less generous metrics than this sandbox's
+       Chromium -- every element below that renders text also sets its own
+       explicit line-height for the same reason. */
+    line-height:1.2;
   }
 
   /* ---------- layout ---------- */
@@ -103,6 +111,7 @@
     position:relative;
     text-align:center;
     font-size:1.1vw;
+    line-height:1.2;
     letter-spacing:0.13vw;
     color:var(--accent, var(--copper));
     text-transform:uppercase;
@@ -157,7 +166,7 @@
     width:var(--stat-w, 10vw);
     margin-top:0.35vw;
   }
-  .stat-line .lbl{ font-size:0.8vw; color:var(--copper-dim); letter-spacing:0.03vw; white-space:nowrap; }
+  .stat-line .lbl{ font-size:0.8vw; line-height:1.2; color:var(--copper-dim); letter-spacing:0.03vw; white-space:nowrap; }
   .stat-line b{ font-size:1.85vw; font-weight:700; color:var(--copper); line-height:1; white-space:nowrap; }
 
   /* ---------- clock ---------- */
@@ -179,48 +188,51 @@
   #tile-weather{ --accent:var(--copper); }
   .wx-now{ display:flex; align-items:baseline; gap:0.9vw; }
   .wx-temp{
-    font-size:4.4vw; font-weight:700; color:var(--copper);
+    font-size:3.8vw; line-height:1; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
   }
-  .wx-cond{ font-size:1.5vw; color:var(--cream); letter-spacing:0.05vw; }
-  .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.4vw; }
-  .wx-fc-day{ font-size:1vw; color:var(--copper-dim); text-align:center; }
-  .wx-fc-day b{ color:var(--copper); display:block; font-size:1.6vw; }
+  .wx-cond{ font-size:1.5vw; line-height:1.2; color:var(--cream); letter-spacing:0.05vw; }
+  .wx-fc-row{ display:flex; gap:1.6vw; margin-top:0.25vw; }
+  .wx-fc-day{ font-size:1vw; line-height:1.2; color:var(--copper-dim); text-align:center; }
+  .wx-fc-day b{ color:var(--copper); display:block; font-size:1.4vw; line-height:1.15; }
 
   .wx-grid{ display:flex; gap:2.8vw; }
   .wx-col{ flex:0 0 auto; min-width:0; display:flex; flex-direction:column; align-items:flex-start; }
   .wx-col:first-child{ --stat-w:11vw; align-items:center; }
   .wx-col:last-child{ --stat-w:14.5vw; }
   .wx-col .stat-line:first-child{ margin-top:0.05vw; }
-  #tile-weather .stat-line{ margin-top:0.2vw; }
+  #tile-weather .stat-line{ margin-top:0.12vw; }
+  #tile-weather .stat-line b{ font-size:1.55vw; }
 
   /* ---------- sun ---------- */
 
   #tile-sun{ --accent:var(--amber); --stat-w:12vw; }
   .sun-hero{
-    font-size:2.6vw; font-weight:700; color:var(--copper);
+    font-size:2.2vw; line-height:1; font-weight:700; color:var(--copper);
     text-shadow:0 0 8px rgba(184,115,51,0.5);
     font-variant-numeric: tabular-nums;
   }
-  .sun-hero-label{ font-size:0.75vw; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.05vw; }
-  #tile-sun .stat-line{ margin-top:0.05vw; }
+  .sun-hero-label{ font-size:0.75vw; line-height:1.2; color:var(--amber); letter-spacing:0.05vw; opacity:0.9; margin-bottom:0.05vw; }
+  #tile-sun .stat-line{ margin-top:0.1vw; }
+  #tile-sun .stat-line b{ font-size:1.6vw; }
 
   /* ---------- moon ---------- */
 
   #tile-moon{ --accent:var(--cream); --stat-w:12vw; }
   .moonuv-row{ display:flex; align-items:center; gap:1.15vw; }
   .moon-visual{
-    width:4.4vw; aspect-ratio:1/1; min-width:4.4vw;
+    width:3.6vw; aspect-ratio:1/1; min-width:3.6vw;
     border-radius:50%;
     border:1px solid var(--cream);
     background:#050505;
     box-shadow: inset 0 0 0 0 var(--cream);
   }
-  .moon-info{ font-size:1.05vw; line-height:1.35; }
-  .moon-info .phase-name{ color:var(--cream); font-size:1.5vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
+  .moon-info{ font-size:1.05vw; line-height:1.15; }
+  .moon-info .phase-name{ color:var(--cream); font-size:1.4vw; display:block; text-shadow:0 0 6px rgba(245,240,230,0.35); }
   .moon-info .dim{ color:var(--cream-dim); }
+  #tile-moon .stat-line{ margin-top:0.2vw; }
   #tile-moon .stat-line .lbl{ color:var(--cream-dim); }
-  #tile-moon .stat-line b{ color:var(--cream); }
+  #tile-moon .stat-line b{ color:var(--cream); font-size:1.6vw; }
 
   /* ---------- planets ---------- */
 
